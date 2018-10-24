@@ -1,44 +1,40 @@
 # For more information about using CMake with Android Studio, read the
 # documentation: https://d.android.com/studio/projects/add-native-code.html
 
-# Sets the minimum version of CMake required to build the native library.
-
 cmake_minimum_required(VERSION 3.4.1)
 
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
+set(CMAKE_VERBOSE_MAKEFILE on)
 
-add_library( # Sets the name of the library.
-        native-lib
+get_filename_component(AM_SRC_ROOT ${CMAKE_SOURCE_DIR}/../../../..  ABSOLUTE)
+get_filename_component(SAMPLE_SRC_DIR  ${CMAKE_SOURCE_DIR}/src/main/cpp  ABSOLUTE)
 
-        # Sets the library as a shared library.
-        SHARED
+if (ANDROID_ABI MATCHES "^armeabi-v7a$")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfloat-abi=softfp -mfpu=neon")
+elseif(ANDROID_ABI MATCHES "^arm64-v8a")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -ftree-vectorize")
+endif()
 
-        # Provides a relative path to your source file(s).
-        src/main/cpp/native-lib.cpp)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSTANDALONE_DEMO_LIB \
+                    -std=c++11 -fno-exceptions -fno-rtti -O2 -Wno-narrowing \
+                    -fPIE")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} \
+                              -Wl,--allow-multiple-definition \
+                              -Wl,--whole-archive -fPIE -v")
 
-# Searches for a specified prebuilt library and stores the path as a
-# variable. Because CMake includes system libraries in the search path by
-# default, you only need to specify the name of the public NDK library
-# you want to add. CMake verifies that the library exists before
-# completing its build.
+file(GLOB_RECURSE automobile_sources ${SAMPLE_SRC_DIR}*.*)
 
-find_library( # Sets the name of the path variable.
-        log-lib
+add_library(automobile SHARED
+        ${SAMPLE_SRC_DIR}/imageutils_jni.cpp
+        ${SAMPLE_SRC_DIR}/rgb2yuv.cpp
+        ${SAMPLE_SRC_DIR}/rgb2yuv.h
+        ${SAMPLE_SRC_DIR}/yuv2rgb.cpp
+        ${SAMPLE_SRC_DIR}/yuv2rgb.h
+        )
 
-        # Specifies the name of the NDK library that
-        # you want CMake to locate.
-        log)
+target_include_directories(automobile PRIVATE
+        ${SAMPLE_SRC_DIR})
 
-# Specifies libraries CMake should link to your target library. You
-# can link multiple libraries, such as libraries you define in this
-# build script, prebuilt third-party libraries, or system libraries.
-
-target_link_libraries( # Specifies the target library.
-        native-lib
-
-        # Links the target library to the log library
-        # included in the NDK.
-        ${log-lib})
+set(OPENCV_SDK "C:/OpenCV4Android/OpenCV-android-sdk")
+include_directories(OPENCV_SDK/sdk/native/jni/include)
+add_library( opencv SHARED IMPORTED )
+set_target_properties( opencv PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI}/libopencv_java3.so)

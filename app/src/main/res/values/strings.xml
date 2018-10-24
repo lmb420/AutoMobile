@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">AutoMobile</string>
+    <string name="picture">Picture</string>
+    <string name="description_info">Info</string>
+    <string name="request_permission">This sample needs camera permission.</string>
+    <string name="camera_error">This device doesn\'t support Camera2 API.</string>
+    <string name="intro_message">
+            <![CDATA[
+                This app is a demonstration of \'s potential
+                as an ADAS platform
+            ]]>
+        </string>
 </resources>

@@ -8,10 +8,7 @@ import android.app.Fragment
 import android.content.Context
 import android.content.DialogInterface
 import android.content.res.Configuration
-import android.graphics.ImageFormat
-import android.graphics.Matrix
-import android.graphics.RectF
-import android.graphics.SurfaceTexture
+import android.graphics.*
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -21,13 +18,16 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.hardware.camera2.params.StreamConfigurationMap
+import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
+import android.media.ImageWriter
 import android.media.browse.MediaBrowser
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.text.TextUtils
+import android.util.Log
 import android.util.Size
 import android.util.SparseIntArray
 import android.view.LayoutInflater
@@ -36,6 +36,8 @@ import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import kotlinx.android.synthetic.main.fragment_camera2_basic.*
+import java.sql.Connection
 import java.util.ArrayList
 import java.util.Arrays
 import java.util.Collections
@@ -43,33 +45,23 @@ import java.util.Comparator
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 
-class CameraConnectionFragment : Fragment() (
-    companion object{
-        fun newInstance(
-                callback: ConnectionCallback,
-                imageListener: OnImageAvailableListener,
-                layout: Int,
-                inputSize: Size): CameraConnectionFragment {
-            val frag = CameraConnectionFragment()
-            val args = Bundle().apply {
-                putSerializable("cameraConnectionCallback", callback)
-            }
-            return frag;
-        }
+class CameraConnectionFragment : Fragment() {
+    private val TAG = "cse281.automobile.CameraConnectionFragment"
 
-    }
+    private val ARG_LAYOUT = "CameraConnection_layout"
+    private val ARG_INPUTSIZE = "CameraConnection_inputsize"
 
-    private val cameraConnectionCallback: MediaBrowser.ConnectionCallback
+    private lateinit var cameraConnectionCallback: ConnectionCallback
     /**
      * A [OnImageAvailableListener] to receive frames as they are available.
      */
-    private val imageListener: OnImageAvailableListener
+    private lateinit var imageListener: OnImageAvailableListener
     /**
      * The layout identifier to inflate for this Fragment.
      */
-    private val layout: Int
+    private var layout: Int? = 0
     /** The input size in pixels desired by TensorFlow (width and height of a square bitmap).  */
-    private val inputSize: Size
+    private lateinit var inputSize: Size
 
     /**
      * [android.view.TextureView.SurfaceTextureListener] handles several lifecycle events on a
@@ -202,6 +194,14 @@ class CameraConnectionFragment : Fragment() (
         fun onPreviewSizeChosen(size: Size, cameraRotation: Int)
     }
 
+    private fun setConnectionCallback(callback: ConnectionCallback) {
+        cameraConnectionCallback = callback
+    }
+
+    private fun setOnImageAvailableListener(listener: OnImageAvailableListener) {
+        imageListener = listener
+    }
+
     /**
      * Shows a [Toast] on the UI thread.
      *
@@ -213,8 +213,19 @@ class CameraConnectionFragment : Fragment() (
     }
 
     override fun onCreateView(
-            inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle): View? {
-        return inflater.inflate(layout, container, false)
+            inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+
+        readBundle(getArguments())
+
+        val layoutVal = layout!!
+        val view = inflater.inflate(layoutVal, container, false)
+
+        return view
+    }
+
+    private fun readBundle(bundle: Bundle) {
+        this.layout = bundle.getInt(ARG_LAYOUT)
+        this.inputSize = bundle.getSize(ARG_INPUTSIZE)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -261,11 +272,6 @@ class CameraConnectionFragment : Fragment() (
 
             val map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
 
-            // For still image captures, we use the largest available size.
-            val largest = Collections.max(
-                    Arrays.asList(*map!!.getOutputSizes(ImageFormat.YUV_420_888)),
-                    CompareSizesByArea())
-
             sensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION)
 
             // Danger, W.R.! Attempting to use too large a preview size could  exceed the camera
@@ -283,18 +289,14 @@ class CameraConnectionFragment : Fragment() (
                 textureView!!.setAspectRatio(previewSize!!.height, previewSize!!.width)
             }
         } catch (e: CameraAccessException) {
-            LOGGER.e(e, "Exception!")
+            Log.e(TAG, "Exception: Cannot access camera")
         } catch (e: NullPointerException) {
-            // Currently an NPE is thrown when the Camera2API is used but not supported on the
-            // device this code runs.
-            // TODO(andrewharp): abstract ErrorDialog/RuntimeException handling out into new method and
-            // reuse throughout app.
             ErrorDialog.newInstance(getString(R.string.camera_error))
                     .show(childFragmentManager, FRAGMENT_DIALOG)
             throw RuntimeException(getString(R.string.camera_error))
         }
 
-        cameraConnectionCallback.onPreviewSizeChosen(previewSize, sensorOrientation!!)
+        cameraConnectionCallback.onPreviewSizeChosen(previewSize!!, sensorOrientation!!)
     }
 
     /**
@@ -311,7 +313,7 @@ class CameraConnectionFragment : Fragment() (
             }
             manager.openCamera(cameraId!!, stateCallback, backgroundHandler)
         } catch (e: CameraAccessException) {
-            LOGGER.e(e, "Exception!")
+            Log.e(TAG, "Exception: Unable to access camera")
         } catch (e: InterruptedException) {
             throw RuntimeException("Interrupted while trying to lock camera opening.", e)
         } catch (e: SecurityException) {
@@ -373,7 +375,7 @@ class CameraConnectionFragment : Fragment() (
      */
     private fun createCameraPreviewSession() {
         try {
-            val texture = textureView!!.getSurfaceTexture()!!
+            val texture = textureView!!.getSurfaceTexture()
 
             // We configure the size of default buffer to be the size of camera preview we want.
             texture!!.setDefaultBufferSize(previewSize!!.width, previewSize!!.height)
@@ -382,19 +384,19 @@ class CameraConnectionFragment : Fragment() (
             val surface = Surface(texture)
 
             // We set up a CaptureRequest.Builder with the output Surface.
-            previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-            previewRequestBuilder!!.addTarget(surface)
 
             // Create the reader for the preview frames.
             previewReader = ImageReader.newInstance(
                     previewSize!!.width, previewSize!!.height, ImageFormat.YUV_420_888, 2)
+
+            previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
 
             previewReader!!.setOnImageAvailableListener(imageListener, backgroundHandler)
             previewRequestBuilder!!.addTarget(previewReader!!.surface)
 
             // Here, we create a CameraCaptureSession for camera preview.
             cameraDevice!!.createCaptureSession(
-                    Arrays.asList(surface, previewReader!!.surface),
+                    Arrays.asList(previewReader!!.surface),
                     object : CameraCaptureSession.StateCallback() {
 
                         override fun onConfigured(cameraCaptureSession: CameraCaptureSession) {
@@ -419,7 +421,7 @@ class CameraConnectionFragment : Fragment() (
                                 captureSession!!.setRepeatingRequest(
                                         previewRequest!!, captureCallback, backgroundHandler)
                             } catch (e: CameraAccessException) {
-                                LOGGER.e(e, "Exception!")
+                                Log.e(TAG, "Exception: Cannot access camera")
                             }
 
                         }
@@ -431,6 +433,35 @@ class CameraConnectionFragment : Fragment() (
         } catch (e: CameraAccessException) {
         }
 
+    }
+
+
+    public fun displayFrame(frame: Bitmap)
+    {
+        val canvas = textureView!!.lockCanvas()
+
+        val rotation = activity.windowManager.defaultDisplay.rotation
+        val matrix = Matrix()
+        val viewRect = RectF(0f, 0f, textureView!!.width.toFloat(), textureView!!.height.toFloat())
+        val bufferRect = RectF(0f, 0f, previewSize!!.height.toFloat(), previewSize!!.width.toFloat())
+        val centerX = viewRect.centerX()
+        val centerY = viewRect.centerY()
+
+        val scale = Math.min(
+               textureView!!.height.toFloat() / previewSize!!.width,
+                textureView!!.width.toFloat() / previewSize!!.height)
+
+        matrix.postRotate(90 * (rotation + 1).toFloat(), 0f, 0f)
+
+        matrix.postTranslate(previewSize!!.height.toFloat(), 0f)
+
+        matrix.postScale(scale, scale)
+
+        Log.i(TAG, "Rotation is $rotation")
+
+        canvas.drawBitmap(frame, matrix, null)
+
+        textureView!!.unlockCanvasAndPost(canvas)
     }
 
     /**
@@ -506,7 +537,26 @@ class CameraConnectionFragment : Fragment() (
     }
 
     companion object {
-        private val LOGGER = Logger()
+        private val TAG = "cse281.automobile.CameraConnectionCompanion"
+
+        private val ARG_LAYOUT = "CameraConnection_layout"
+        private val ARG_INPUTSIZE = "CameraConnection_inputsize"
+
+
+        fun newInstance(callback: ConnectionCallback,
+                imageListener: OnImageAvailableListener,
+                layout: Int,
+                inputSize: Size): CameraConnectionFragment {
+            val frag = CameraConnectionFragment()
+            val args = Bundle().apply {
+                putInt(ARG_LAYOUT, layout)
+                putSize(ARG_INPUTSIZE, inputSize)
+            }
+            frag.arguments = args
+            frag.setConnectionCallback(callback)
+            frag.setOnImageAvailableListener(imageListener);
+            return frag
+        }
 
         /**
          * The camera preview size will be chosen to be the smallest frame by pixel size capable of
@@ -557,22 +607,22 @@ class CameraConnectionFragment : Fragment() (
                 }
             }
 
-            LOGGER.i("Desired size: " + desiredSize + ", min size: " + minSize + "x" + minSize)
-            LOGGER.i("Valid preview sizes: [" + TextUtils.join(", ", bigEnough) + "]")
-            LOGGER.i("Rejected preview sizes: [" + TextUtils.join(", ", tooSmall) + "]")
+            Log.i(TAG, "Desired size: " + desiredSize + ", min size: " + minSize + "x" + minSize)
+            Log.i(TAG, "Valid preview sizes: [" + TextUtils.join(", ", bigEnough) + "]")
+            Log.i(TAG, "Rejected preview sizes: [" + TextUtils.join(", ", tooSmall) + "]")
 
             if (exactSizeFound) {
-                LOGGER.i("Exact size match found.")
+                Log.i(TAG, "Exact size match found.")
                 return desiredSize
             }
 
             // Pick the smallest of those, assuming we found any
             if (bigEnough.size > 0) {
                 val chosenSize = Collections.min(bigEnough, CompareSizesByArea())
-                LOGGER.i("Chosen size: " + chosenSize.width + "x" + chosenSize.height)
+                Log.i(TAG, "Chosen size: " + chosenSize.width + "x" + chosenSize.height)
                 return chosenSize
             } else {
-                LOGGER.e("Couldn't find any suitable preview size")
+                Log.e(TAG, "Couldn't find any suitable preview size")
                 return choices[0]
             }
         }
