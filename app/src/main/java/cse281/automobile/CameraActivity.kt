@@ -173,11 +173,13 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
     override fun onPause() {
         Log.d(TAG, "Called onPause")
 
+        /*
         if(!isFinishing())
         {
             Log.i(TAG, "Finishing")
             finish()
         }
+        */
 
         handlerThread!!.quitSafely()
         try {

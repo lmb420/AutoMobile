@@ -18,6 +18,7 @@ import android.media.ImageReader
 
 import android.util.Log
 import android.util.Size
+import android.view.Surface
 import android.widget.Toast
 
 import org.opencv.android.OpenCVLoader
@@ -44,6 +45,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
     private val MAINTAIN_ASPECT = true
 
+    private var displayOrientation: Int? = null
 
     private var rgbFrameBitmap: Bitmap? = null
     private var croppedBitmap: Bitmap? = null
@@ -58,6 +60,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private var sensorOrientation: Int? = null
     private var frameToCropTransform: Matrix? = null
     private var cropToFrameTransform: Matrix? = null
+    private var frameToScreenTransform: Matrix? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -78,7 +81,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
         rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888)
         val orientation = rotation - screenOrientation
-        Log.i(TAG, "Camera orientation relative to screen canvas: $orientation")
+
+        displayOrientation = rotation
 
         rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888)
         croppedBitmap = Bitmap.createBitmap(INPUT_SIZE, INPUT_SIZE, Bitmap.Config.ARGB_8888)
@@ -86,10 +90,21 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         frameToCropTransform = ImageUtils.getTransformationMatrix(
                 previewWidth, previewHeight,
                 INPUT_SIZE, INPUT_SIZE,
-                orientation, MAINTAIN_ASPECT)
+                orientation!!, MAINTAIN_ASPECT)
 
         cropToFrameTransform = Matrix()
         frameToCropTransform!!.invert(cropToFrameTransform)
+
+        if(textureView != null) {
+            Log.i(TAG, "Initializing transformation with orientation $orientation")
+            frameToScreenTransform = ImageUtils.getTransformationMatrix(
+                    previewWidth, previewHeight,
+                    textureView!!.width, textureView!!.height,
+                    displayOrientation!!, MAINTAIN_ASPECT)
+        }
+        else {
+            frameToScreenTransform = null
+        }
     }
 
     protected override fun processImage() {
@@ -128,8 +143,17 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             textureView = findViewById(R.id.texture) as AutoFitTextureView
         }
 
+        if(frameToScreenTransform == null) {
+            Log.i(TAG, "Initializing transformation with orientation $displayOrientation")
+            frameToScreenTransform = ImageUtils.getTransformationMatrix(
+                    previewWidth, previewHeight,
+                    textureView!!.width, textureView!!.height,
+                    displayOrientation!!, MAINTAIN_ASPECT)
+        }
+
         val canvas = textureView!!.lockCanvas()
 
+        /*
         val rotation = this.windowManager.defaultDisplay.rotation
         val matrix = Matrix()
         val viewRect = RectF(0f, 0f, textureView!!.width.toFloat(), textureView!!.height.toFloat())
@@ -148,8 +172,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         matrix.postScale(scale, scale)
 
         Log.i(TAG, "Rotation is $rotation")
-
-        canvas.drawBitmap(frame, matrix, null)
+        */
+        canvas.drawBitmap(frame, frameToScreenTransform, null)
 
         textureView!!.unlockCanvasAndPost(canvas)
      }
