@@ -1,41 +1,27 @@
 package cse281.automobile
 
+
 import android.Manifest
-import android.app.Fragment
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
-import android.support.v7.app.AppCompatActivity
-import android.graphics.Bitmap
-import android.os.*
-import android.graphics.BitmapFactory
-
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
-
 import android.media.Image
 import android.media.ImageReader
-
+import android.media.ImageReader.OnImageAvailableListener
+import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Trace
 import android.util.Log
 import android.util.Size
+import android.view.Surface
 import android.widget.Toast
-
-import org.opencv.android.OpenCVLoader
-import org.opencv.android.Utils
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.imgcodecs.Imgcodecs
-import org.opencv.imgproc.Imgproc
-import org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C
-import org.opencv.imgproc.Imgproc.THRESH_BINARY
-
-import java.lang.String.format
-
 import cse281.env.ImageUtils
 
-
-class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
-{
+abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConnectionFragment.ConnectionCallback, FragmentArgumentProvider {
     private val TAG = "cse281.automobile.CameraActivity"
 
     private val PERMISSIONS_REQUEST = 1
@@ -51,9 +37,6 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
     private var rgbBytes: IntArray? = null
     private var yRowStride: Int = 0
 
-    private var lastProcessingTimeMs: Long = 0
-
-    protected val desiredPreviewFrameSize: Size = Size(640, 480)
 
     protected var previewWidth = 0
     protected var previewHeight = 0
@@ -61,10 +44,23 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
     private var postInferenceCallback: Runnable? = null
     private var imageConverter: Runnable? = null
 
-    private var rgbFrameBitmap: Bitmap? = null
 
     private lateinit var fragment: CameraConnectionFragment
 
+    protected val luminance: ByteArray
+        get() = yuvBytes[0]!!
+
+    protected val screenOrientation: Int
+        get() {
+            when (windowManager.defaultDisplay.rotation) {
+                Surface.ROTATION_270 -> return 270
+                Surface.ROTATION_180 -> return 180
+                Surface.ROTATION_90 -> return 90
+                else -> return 0
+            }
+        }
+
+    protected abstract val desiredPreviewFrameSize: Size
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.d(TAG, "Called onCreate")
@@ -80,70 +76,31 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
         // Example of a call to a native method
     }
 
-    companion object {
-        private val TAG = "cse281.automobile.CameraActivity"
-        init {
-            if(!OpenCVLoader.initDebug()) {
-                Log.e(TAG, "Failed to load OpenCV library")
-            }
-        }
+
+    protected fun getRgbBytes(): IntArray? {
+        imageConverter!!.run()
+        return rgbBytes
     }
 
-    override fun onStart() {
-        Log.d(TAG, "Called onStart")
-        super.onStart()
+    override fun previewSizeChosen(size: Size, rotation: Int) {
+        previewHeight = size.height
+        previewWidth = size.width
+        this.onPreviewSizeChosen(size, rotation)
     }
 
-    override fun onResume() {
-        Log.d(TAG, "Called onResume")
-        super.onResume()
-
-        handlerThread = HandlerThread("inference")
-        handlerThread?.let { it.start() }
-        handlerThread?.let { handler = Handler(it.getLooper()) }
+    override fun getCameraConnectionCallback() : CameraConnectionFragment.ConnectionCallback {
+        return this
     }
 
-    override fun onPause() {
-        Log.d(TAG, "Called onPause")
-
-        if(!isFinishing())
-        {
-            Log.i(TAG, "Finishing")
-            finish()
-        }
-
-        handlerThread!!.quitSafely()
-        try {
-            handlerThread!!.join()
-            handlerThread = null
-            handler = null
-        } catch(e : InterruptedException) {
-            Log.e(TAG, "Exception")
-        }
-
-        super.onPause()
-    }
-
-    override fun onStop() {
-        Log.d(TAG, "Called onStop")
-        super.onStop()
-    }
-
-    override fun onDestroy() {
-        Log.d(TAG, "Called onDestroy")
-        super.onDestroy()
-    }
-
-    @Synchronized
-    protected fun runInBackground(r: Runnable) {
-        handler!!.post(r)
+    override fun getOnImageAvailableListener() : ImageReader.OnImageAvailableListener {
+        return this
     }
 
     /**
      * Callback for Camera2 API
      */
     override fun onImageAvailable(reader: ImageReader) {
-        //We need wait until we have some size from onPreviewSizeChosen
+        //We need wait until we have some size from previewSizeChosen
         if (previewWidth == 0 || previewHeight == 0) {
             return
         }
@@ -196,6 +153,60 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
         Trace.endSection()
     }
 
+    @Synchronized
+    override fun onStart() {
+        Log.d(TAG, "Called onStart")
+        super.onStart()
+    }
+
+    @Synchronized
+    override fun onResume() {
+        Log.d(TAG, "Called onResume")
+        super.onResume()
+
+        handlerThread = HandlerThread("inference")
+        handlerThread?.let { it.start() }
+        handlerThread?.let { handler = Handler(it.getLooper()) }
+    }
+
+    @Synchronized
+    override fun onPause() {
+        Log.d(TAG, "Called onPause")
+
+        if(!isFinishing())
+        {
+            Log.i(TAG, "Finishing")
+            finish()
+        }
+
+        handlerThread!!.quitSafely()
+        try {
+            handlerThread!!.join()
+            handlerThread = null
+            handler = null
+        } catch(e : InterruptedException) {
+            Log.e(TAG, "Exception")
+        }
+
+        super.onPause()
+    }
+
+    @Synchronized
+    override fun onStop() {
+        Log.d(TAG, "Called onStop")
+        super.onStop()
+    }
+
+    @Synchronized
+    override fun onDestroy() {
+        Log.d(TAG, "Called onDestroy")
+        super.onDestroy()
+    }
+
+    @Synchronized
+    protected fun runInBackground(r: Runnable) {
+        handler?.post(r)
+    }
 
     override fun onRequestPermissionsResult(
             requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
@@ -217,7 +228,7 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
 
     private fun requestPermission() {
         if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA) || shouldShowRequestPermissionRationale(PERMISSION_STORAGE)) {
-            Toast.makeText(this@CameraActivity,
+            Toast.makeText(this,
                     "Camera AND storage permission are required for this app", Toast.LENGTH_LONG).show()
         }
         requestPermissions(arrayOf(PERMISSION_CAMERA, PERMISSION_STORAGE), PERMISSIONS_REQUEST)
@@ -276,13 +287,7 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
         }
 
         val camera2Fragment = CameraConnectionFragment.newInstance(
-                object : CameraConnectionFragment.ConnectionCallback {
-                    override fun onPreviewSizeChosen(size: Size, rotation: Int) {
-                        previewHeight = size.height
-                        previewWidth = size.width
-                        this@CameraActivity.onPreviewSizeChosen(size, rotation)
-                    }
-                },
+                this,
                 this,
                 R.layout.fragment_camera2_basic,
                 desiredPreviewFrameSize)
@@ -304,53 +309,49 @@ class CameraActivity : AppCompatActivity(), ImageReader.OnImageAvailableListener
         for (i in planes.indices) {
             val buffer = planes[i].buffer
             if (yuvBytes[i] == null) {
-                Log.d(TAG, format("Initializing buffer %d at size %d", i, buffer.capacity()))
+                Log.d(TAG, java.lang.String.format("Initializing buffer %d at size %d", i, buffer.capacity()))
                 yuvBytes[i] = ByteArray(buffer.capacity())
             }
             buffer.get(yuvBytes[i])
         }
     }
-
-    protected fun onPreviewSizeChosen(size: Size, rotation: Int) {
-        previewWidth = size.width
-        previewHeight = size.height
-
-        Log.i(TAG,"Initializing at size $previewWidth x $previewHeight")
-
-        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888)
+/*
+    fun requestRender() {
+        val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
+        if (overlay != null) {
+            overlay!!.postInvalidate()
+        }
     }
 
-    protected fun processImage()
-    {
-        imageConverter!!.run()
-        rgbFrameBitmap!!.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight)
-
-        val frame = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
-        val result = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
-
-        runInBackground(
-                Runnable {
-                    val startTime = SystemClock.uptimeMillis()
-
-                    Utils.bitmapToMat(rgbFrameBitmap, frame)
-                    Imgproc.cvtColor(frame, frame, Imgproc.COLOR_RGB2GRAY)
-                    Imgproc.adaptiveThreshold(frame, result, 255.0, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 9, 40.0)
-
-                    lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime
-                    //Log.v(TAG, "Processing took $lastProcessingTimeMs ms")
-
-                    Utils.matToBitmap(result, rgbFrameBitmap)
-                    rgbFrameBitmap!!.getPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight)
-
-
-                    fragment.displayFrame(rgbFrameBitmap!!)
-
-                    readyForNextImage()
-                }
-        )
+    fun addCallback(callback: OverlayView.DrawCallback) {
+        val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
+        if (overlay != null) {
+            overlay!!.addCallback(callback)
+        }
     }
 
+    fun onSetDebug(debug: Boolean) {}
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP
+                || keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+            isDebug = !isDebug
+            requestRender()
+            onSetDebug(isDebug)
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+*/
     protected fun readyForNextImage() {
-        postInferenceCallback!!.run()
+        if (postInferenceCallback != null) {
+            postInferenceCallback!!.run()
+        }
     }
+
+
+    protected abstract fun processImage()
+
+    protected abstract fun onPreviewSizeChosen(size: Size, rotation: Int)
+
 }

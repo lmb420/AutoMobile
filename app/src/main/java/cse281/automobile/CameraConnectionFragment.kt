@@ -1,12 +1,10 @@
 package cse281.automobile
 
-import android.app.Activity
 import android.app.AlertDialog
 import android.app.Dialog
 import android.app.DialogFragment
 import android.app.Fragment
 import android.content.Context
-import android.content.DialogInterface
 import android.content.res.Configuration
 import android.graphics.*
 import android.hardware.camera2.CameraAccessException
@@ -17,12 +15,8 @@ import android.hardware.camera2.CameraManager
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
-import android.hardware.camera2.params.StreamConfigurationMap
-import android.media.Image
 import android.media.ImageReader
 import android.media.ImageReader.OnImageAvailableListener
-import android.media.ImageWriter
-import android.media.browse.MediaBrowser
 import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
@@ -36,8 +30,6 @@ import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import kotlinx.android.synthetic.main.fragment_camera2_basic.*
-import java.sql.Connection
 import java.util.ArrayList
 import java.util.Arrays
 import java.util.Collections
@@ -191,7 +183,7 @@ class CameraConnectionFragment : Fragment() {
      * selected preview size is known.
      */
     interface ConnectionCallback {
-        fun onPreviewSizeChosen(size: Size, cameraRotation: Int)
+        fun previewSizeChosen(size: Size, cameraRotation: Int)
     }
 
     private fun setConnectionCallback(callback: ConnectionCallback) {
@@ -215,12 +207,19 @@ class CameraConnectionFragment : Fragment() {
     override fun onCreateView(
             inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 
-        readBundle(getArguments())
+        readBundle(arguments)
 
-        val layoutVal = layout!!
-        val view = inflater.inflate(layoutVal, container, false)
+        val argumentProvider : FragmentArgumentProvider
+        try {
+            argumentProvider = activity as FragmentArgumentProvider
+        } catch (e: ClassCastException) {
+            throw ClassCastException(activity.toString() + " must implement FragmentArgumentProvider")
+        }
 
-        return view
+        setConnectionCallback(argumentProvider.getCameraConnectionCallback())
+        setOnImageAvailableListener(argumentProvider.getOnImageAvailableListener())
+
+        return inflater.inflate(layout!!, container, false)
     }
 
     private fun readBundle(bundle: Bundle) {
@@ -244,10 +243,10 @@ class CameraConnectionFragment : Fragment() {
         // available, and "onSurfaceTextureAvailable" will not be called. In that case, we can open
         // a camera and start preview from here (otherwise, we wait until the surface is ready in
         // the SurfaceTextureListener).
-        if (textureView!!.isAvailable()) {
-            openCamera(textureView!!.getWidth(), textureView!!.getHeight())
+        if (textureView!!.isAvailable) {
+            openCamera(textureView!!.width, textureView!!.height)
         } else {
-            textureView!!.setSurfaceTextureListener(surfaceTextureListener)
+            textureView!!.surfaceTextureListener = surfaceTextureListener
         }
     }
 
@@ -296,7 +295,7 @@ class CameraConnectionFragment : Fragment() {
             throw RuntimeException(getString(R.string.camera_error))
         }
 
-        cameraConnectionCallback.onPreviewSizeChosen(previewSize!!, sensorOrientation!!)
+        cameraConnectionCallback.previewSizeChosen(previewSize!!, sensorOrientation!!)
     }
 
     /**
@@ -375,7 +374,13 @@ class CameraConnectionFragment : Fragment() {
      */
     private fun createCameraPreviewSession() {
         try {
-            val texture = textureView!!.getSurfaceTexture()
+            val texture = textureView!!.surfaceTexture
+
+            if(texture == null)
+            {
+                textureView!!.surfaceTextureListener = surfaceTextureListener
+                return
+            }
 
             // We configure the size of default buffer to be the size of camera preview we want.
             texture!!.setDefaultBufferSize(previewSize!!.width, previewSize!!.height)
@@ -435,7 +440,7 @@ class CameraConnectionFragment : Fragment() {
 
     }
 
-
+    /*
     public fun displayFrame(frame: Bitmap)
     {
         val canvas = textureView!!.lockCanvas()
@@ -463,6 +468,7 @@ class CameraConnectionFragment : Fragment() {
 
         textureView!!.unlockCanvasAndPost(canvas)
     }
+    */
 
     /**
      * Configures the necessary [android.graphics.Matrix] transformation to `mTextureView`.
