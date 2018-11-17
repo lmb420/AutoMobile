@@ -5,6 +5,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.hardware.camera2.CameraAccessException
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
@@ -41,7 +42,7 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
     protected var previewWidth = 0
     protected var previewHeight = 0
 
-    private var postInferenceCallback: Runnable? = null
+    protected var postInferenceCallback: Runnable? = null
     private var imageConverter: Runnable? = null
 
 
@@ -345,7 +346,7 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
         return super.onKeyDown(keyCode, event)
     }
 */
-    protected fun readyForNextImage() {
+    public fun readyForNextImage() {
         if (postInferenceCallback != null) {
             postInferenceCallback!!.run()
         }
@@ -355,5 +356,7 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
     protected abstract fun processImage()
 
     protected abstract fun onPreviewSizeChosen(size: Size, rotation: Int)
+
+    protected abstract fun displayFrame(frame: Bitmap)
 
 }

@@ -32,6 +32,7 @@ import org.opencv.imgproc.Imgproc.THRESH_BINARY
 import java.lang.String.format
 
 import cse281.env.ImageUtils
+import org.opencv.core.MatOfPoint
 
 
 class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
@@ -61,6 +62,13 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private var frameToCropTransform: Matrix? = null
     private var cropToFrameTransform: Matrix? = null
     private var frameToScreenTransform: Matrix? = null
+
+    private var processingLaneDetection: Boolean = false
+    private var processingFCW: Boolean = false
+    private var processingSignDetection: Boolean = false
+
+    private var laneDetectionTask: LaneDetection? = null
+    private var laneContours: ArrayList<MatOfPoint>? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -114,7 +122,24 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
         rgbFrameBitmap!!.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight)
 
-        val frame = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
+
+        if(processingLaneDetection == false) {
+            processingLaneDetection = true
+
+            laneDetectionTask = LaneDetection()
+            laneDetectionTask!!.setPreviewSize(Size(previewWidth, previewHeight))
+            laneDetectionTask!!.setActivity(this)
+            laneDetectionTask!!.setCallback(
+                    Runnable { processingLaneDetection = false }
+            )
+
+            val frame = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
+            Utils.bitmapToMat(rgbFrameBitmap, frame)
+
+            laneDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, frame)
+        }
+
+        /*
         val result = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
 
         runInBackground(
@@ -136,12 +161,15 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     readyForNextImage()
                 }
             )
-        }
+        */
+    }
 
-    protected fun displayFrame(frame: Bitmap) {
+     override fun displayFrame(frame: Bitmap) {
         if (textureView == null) {
             textureView = findViewById(R.id.texture) as AutoFitTextureView
         }
+
+         // Draw on all the shit
 
         if(frameToScreenTransform == null) {
             Log.i(TAG, "Initializing transformation with orientation $displayOrientation")
@@ -177,6 +205,11 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
         textureView!!.unlockCanvasAndPost(canvas)
      }
+
+    public fun setContours(contours : ArrayList<MatOfPoint>)
+    {
+        laneContours = contours
+    }
 }
 
 
