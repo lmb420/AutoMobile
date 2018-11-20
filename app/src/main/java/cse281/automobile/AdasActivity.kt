@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.support.v7.app.AppCompatActivity
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.*
@@ -69,6 +70,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
     private var laneDetectionTask: LaneDetection? = null
     private var laneContours: ArrayList<MatOfPoint>? = null
+
+    private var signDetectionTask: SignDetection? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -137,6 +140,18 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             Utils.bitmapToMat(rgbFrameBitmap, frame)
 
             laneDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, frame)
+        }
+
+        if(processingSignDetection == false){
+            processingSignDetection = true
+
+            signDetectionTask = SignDetection()
+
+            signDetectionTask!!.setCallback(
+                    Runnable { processingSignDetection = false }
+            )
+            val testbmp = BitmapFactory.decodeResource(resources, R.drawable.speedlimit)
+            signDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, testbmp)
         }
 
         /*
