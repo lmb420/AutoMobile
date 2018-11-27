@@ -29,17 +29,13 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
     }
 
     protected fun processText(frame: Bitmap) {
-        Log.v(TAG, "Beginning text Detection")
-
         val image = FirebaseVisionImage.fromBitmap(frame)
         val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
 
         textRecognizer.processImage(image)
                 .addOnSuccessListener {
-                    Log.v(TAG, "Detection successful")
                     val result = it.text
                     Log.v(TAG, "result is: $result")
-                    Log.v(TAG, "Printed successful")
 
                     // Task completed successfully
                     // ...
@@ -52,7 +48,6 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
     }
 
     public fun setCallback(callback : Runnable) {
-        Log.v(TAG, "callback set")
         postExecutionCallback = callback
     }
 

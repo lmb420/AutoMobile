@@ -150,9 +150,10 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             signDetectionTask!!.setCallback(
                     Runnable { processingSignDetection = false }
             )
-            val testbmp = BitmapFactory.decodeResource(resources, R.drawable.speedlimit)
-            signDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, testbmp)
+            signDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, rgbFrameBitmap)
         }
+
+        displayFrame(rgbFrameBitmap!!)
 
         /*
         val result = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
