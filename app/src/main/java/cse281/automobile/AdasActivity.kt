@@ -5,6 +5,10 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.*
 import android.support.v7.app.AppCompatActivity
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.os.*
 
 import android.hardware.camera2.CameraAccessException
@@ -71,6 +75,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private val boxPaint = Paint()
 
     private var trackingOverlay: OverlayView? = null
+
+    private var signDetectionTask: SignDetection? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -163,8 +169,18 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             laneDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, frame)
         }
 
-        // TODO: FRAME IS DISPAYED AUTOMATICALLY, RENDER RECTANGLES ON TOP
-        //displayFrame(rgbFrameBitmap!!)
+        if(processingSignDetection == false){
+            processingSignDetection = true
+
+            signDetectionTask = SignDetection()
+
+            signDetectionTask!!.setCallback(
+                    Runnable { processingSignDetection = false }
+            )
+            signDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, rgbFrameBitmap)
+        }
+
+        displayFrame(rgbFrameBitmap!!)
 
         /*
         val result = Mat(previewWidth, previewHeight, CvType.CV_8UC1)

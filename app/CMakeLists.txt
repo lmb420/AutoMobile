@@ -33,8 +33,3 @@ add_library(automobile SHARED
 
 target_include_directories(automobile PRIVATE
         ${SAMPLE_SRC_DIR})
-
-set(OPENCV_SDK "C:/OpenCV4Android/OpenCV-android-sdk")
-include_directories(OPENCV_SDK/sdk/native/jni/include)
-add_library( opencv SHARED IMPORTED )
-set_target_properties( opencv PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/src/main/jniLibs/${ANDROID_ABI}/libopencv_java3.so)
