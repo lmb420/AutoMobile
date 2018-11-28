@@ -84,7 +84,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     }
 
 
-    protected override fun onPreviewSizeChosen(size: Size, rotation: Int) {
+    override fun onPreviewSizeChosen(size: Size, rotation: Int) {
         previewWidth = size.width
         previewHeight = size.height
 
@@ -116,9 +116,10 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         else {
             frameToScreenTransform = null
         }
+       SignDetection.initModel(assets,previewHeight,previewWidth,orientation)
     }
 
-    protected override fun processImage() {
+    override fun processImage() {
         if (processedRgbBytes == null) {
             processedRgbBytes = IntArray(previewWidth * previewHeight)
         }
@@ -143,9 +144,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         }
 
         if(processingSignDetection == false){
-            processingSignDetection = true
-
             signDetectionTask = SignDetection()
+            processingSignDetection = true
 
             signDetectionTask!!.setCallback(
                     Runnable { processingSignDetection = false }
@@ -222,7 +222,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         textureView!!.unlockCanvasAndPost(canvas)
      }
 
-    public fun setContours(contours : ArrayList<MatOfPoint>)
+    fun setContours(contours : ArrayList<MatOfPoint>)
     {
         laneContours = contours
     }
