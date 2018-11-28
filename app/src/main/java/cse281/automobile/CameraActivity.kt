@@ -38,7 +38,6 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
     private var rgbBytes: IntArray? = null
     private var yRowStride: Int = 0
 
-
     protected var previewWidth = 0
     protected var previewHeight = 0
 
@@ -318,34 +317,34 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
             buffer.get(yuvBytes[i])
         }
     }
-/*
-    fun requestRender() {
-        val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
-        if (overlay != null) {
-            overlay!!.postInvalidate()
+    /*
+        fun requestRender() {
+            val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
+            if (overlay != null) {
+                overlay!!.postInvalidate()
+            }
         }
-    }
 
-    fun addCallback(callback: OverlayView.DrawCallback) {
-        val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
-        if (overlay != null) {
-            overlay!!.addCallback(callback)
+        fun addCallback(callback: OverlayView.DrawCallback) {
+            val overlay = findViewById<View>(R.id.debug_overlay) as OverlayView
+            if (overlay != null) {
+                overlay!!.addCallback(callback)
+            }
         }
-    }
 
-    fun onSetDebug(debug: Boolean) {}
+        fun onSetDebug(debug: Boolean) {}
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP
-                || keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
-            isDebug = !isDebug
-            requestRender()
-            onSetDebug(isDebug)
-            return true
+        override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+            if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP
+                    || keyCode == KeyEvent.KEYCODE_BUTTON_L1 || keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+                isDebug = !isDebug
+                requestRender()
+                onSetDebug(isDebug)
+                return true
+            }
+            return super.onKeyDown(keyCode, event)
         }
-        return super.onKeyDown(keyCode, event)
-    }
-*/
+    */
     public fun readyForNextImage() {
         if (postInferenceCallback != null) {
             postInferenceCallback!!.run()
