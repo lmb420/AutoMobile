@@ -19,11 +19,13 @@ import android.R.attr.bitmap
 import android.graphics.*
 import android.opengl.ETC1.getHeight
 import android.os.SystemClock
+import android.widget.Toast
 import java.nio.ByteBuffer
 import java.util.*
+import kotlin.collections.ArrayList
 
 
-class SignDetection : AsyncTask<Bitmap, Void, Int>(){
+class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
     private val TAG = "cse281.automobile.SignDetection"
     var postExecutionCallback : Runnable? = null
 
@@ -31,7 +33,7 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
         private val cropSize = 300
         private val modelFilename = "file:///android_asset/frozen_inference_graph.pb"
         private val labelFilename = "file:///android_asset/labels.pbtxt"
-        private val minimumConf = .20
+        private val minimumConf = .5
 
         private var detector: TFDetector? = null
         private var frameToCropTransform: Matrix? = null
@@ -40,9 +42,12 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
         private var previewWidth:Int? = null
         private var imageSize:Int? = null
         private var croppedBitmap: Bitmap? = null
+        private var parentActivity: AdasActivity? = null
+        private var mappedRecognitions: ArrayList<RectF>? = null
+        private var lastGood: ArrayList<RectF>? = null
 
 
-        fun initModel(assets: AssetManager, previewWidth: Int, previewHeight: Int, sensorOrientation: Int) {
+        fun initModel(assets: AssetManager, previewWidth: Int, previewHeight: Int, sensorOrientation: Int, parentActivity: AdasActivity) {
             this.previewHeight = previewHeight
             this.previewWidth = previewWidth
             detector = TFDetector.create(assets, modelFilename, labelFilename, cropSize)
@@ -53,12 +58,11 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
             croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
             cropToFrameTransform = Matrix()
             frameToCropTransform!!.invert(cropToFrameTransform)
+            this.parentActivity = parentActivity
         }
     }
 
-    override fun doInBackground(vararg frame : Bitmap) : Int {
-        Log.v(TAG, "Beginning Sign Detection")
-
+    override fun doInBackground(vararg frame : Bitmap) : ArrayList<RectF> {
         val canvas = Canvas(croppedBitmap)
         canvas.drawBitmap(frame[0], frameToCropTransform, null)
 
@@ -66,7 +70,7 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
         val results = detector!!.recognizeImage(croppedBitmap!!)
         val endTime = SystemClock.uptimeMillis()
         val elapsed = endTime - startTime
-        Log.v(TAG, "Inference took $elapsed ms")
+        //Log.v(TAG, "Inference took $elapsed ms")
 
         //val overlay = Canvas()
         val paint = Paint()
@@ -76,47 +80,63 @@ class SignDetection : AsyncTask<Bitmap, Void, Int>(){
 
         var minimumConfidence = minimumConf
 
-        val mappedRecognitions = LinkedList<Recognition>()
+        mappedRecognitions = ArrayList<RectF>()
 
         for (result in results) {
             val location = result.getLocation()
             if (result.confidence!! >= minimumConfidence) {
-                canvas.drawRect(location, paint)
                 cropToFrameTransform!!.mapRect(location)
                 result.setLocation(location)
-                mappedRecognitions.add(result)
+                mappedRecognitions!!.add(result.getLocation())
                 Log.v("$TAG.result", result.toString())
             }
         }
-        return 9
+        if(mappedRecognitions!!.size > 0){
+            processText(frame[0], mappedRecognitions!![0])
+        }
+        return mappedRecognitions!!
     }
 
-    private fun processText(location: RectF) {
-//        val image = FirebaseVisionImage.fromBitmap(frame)
-//        val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
-//
-//        textRecognizer.processImage(image)
-//                .addOnSuccessListener {
-//                    val result = it.text
-//                    Log.v(TAG, "result is: $result")
-//
-//                    // Task completed successfully
-//                    // ...
-//                }
-//                .addOnFailureListener {
-//                    Log.v(TAG, "Detection failed with " + it.message)
-//                    // Task failed with an exception
-//                    // ...
-//                }
+    private fun processText(frame: Bitmap, location: RectF) {
+        val width = (location.width() * 1.2).toInt()
+        val height = (location.height() * 1.2).toInt()
+
+        //val croppedFrame = Bitmap.createBitmap(frame, (location.left*(5/6)).toInt(),(location.right*(5/6)).toInt(),width,height)
+        val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt(),(location.top).toInt(),width,height)
+        val image = FirebaseVisionImage.fromBitmap(croppedFrame)
+        val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
+
+        textRecognizer.processImage(image)
+                .addOnSuccessListener {
+                    val result = it.text
+                    Log.v("OCRRESULT", "result = " + result)
+                    Toast.makeText(parentActivity!!.applicationContext, result, Toast.LENGTH_LONG).show();
+
+                    // Task completed successfully
+                    // ...
+                }
+                .addOnFailureListener {
+                    Log.v(TAG, "Detection failed with " + it.message)
+                    // Task failed with an exception
+                    // ...
+                }
     }
 
     fun setCallback(callback : Runnable) {
         postExecutionCallback = callback
     }
 
-    override fun onPostExecute(result : Int) {
+    @Override
+    override fun onPostExecute(result : ArrayList<RectF>) {
         super.onPostExecute(result)
-        Log.v(TAG, "onPostExecute called")
+        //invalidate
+        if(result.size > 0) {
+            Log.v(TAG, "" + result.size)
+            lastGood = result
+            parentActivity!!.setSignRects(result)
+            parentActivity!!.invalidateSigns()
+        }
         postExecutionCallback!!.run()
+        parentActivity!!.readyForNextImage()
     }
 }

@@ -34,6 +34,7 @@ import cse281.automobile.OverlayView.DrawCallback
 import cse281.env.ImageUtils
 import org.opencv.core.*
 import org.opencv.core.Point
+import org.opencv.core.Rect
 
 
 class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
@@ -75,8 +76,11 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private val boxPaint = Paint()
 
     private var trackingOverlay: OverlayView? = null
+    private var signOverlay: OverlayView? = null
 
     private var signDetectionTask: SignDetection? = null
+    private var signRects: ArrayList<RectF>? = null
+    private val signPaint = Paint()
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -134,13 +138,30 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     }
                 })
 
+        signOverlay = findViewById<OverlayView>(R.id.sign_detection_overlay)
+
+        signOverlay!!.addCallback(
+                object : DrawCallback {
+                    override fun drawCallback(canvas: Canvas) {
+                        drawDetections(canvas)
+                    }
+                })
+
         boxPaint.style = Paint.Style.STROKE
         boxPaint.strokeWidth = 12.0f
         boxPaint.strokeCap = Paint.Cap.ROUND
         boxPaint.strokeJoin = Paint.Join.ROUND
         boxPaint.strokeMiter = 100f
         boxPaint.color = 0xffff0000.toInt()
-       SignDetection.initModel(assets,previewHeight,previewWidth,orientation)
+
+
+        signPaint.style = Paint.Style.STROKE
+        signPaint.strokeWidth = 20.0f
+        signPaint.strokeCap = Paint.Cap.ROUND
+        signPaint.strokeJoin = Paint.Join.ROUND
+        signPaint.strokeMiter = 100f
+        signPaint.color = 0xff0000ff.toInt()
+        SignDetection.initModel(assets, previewHeight, previewWidth, orientation, this)
     }
 
     protected override fun processImage() {
@@ -170,17 +191,19 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             laneDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, frame)
         }
 
-        if(processingSignDetection == false){
+        if (processingSignDetection == false) {
             signDetectionTask = SignDetection()
             processingSignDetection = true
 
             signDetectionTask!!.setCallback(
-                    Runnable { processingSignDetection = false }
+                    Runnable {
+                        processingSignDetection = false
+                    }
             )
             signDetectionTask!!.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, rgbFrameBitmap)
         }
 
-        displayFrame(rgbFrameBitmap!!)
+        //displayFrame(rgbFrameBitmap!!)
 
         /*
         val result = Mat(previewWidth, previewHeight, CvType.CV_8UC1)
@@ -205,6 +228,9 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                 }
             )
         */
+    }
+    public fun invalidateSigns(){
+        signOverlay!!.postInvalidate()
     }
 
     // TODO: REMOVE THIS OLD ASS FUNCTION
@@ -264,7 +290,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         if (landCoutoursLocal != null) {
             val numContours = landCoutoursLocal.size
             Log.d(TAG, "Drawing on $numContours contours")
-            for(i in 0 until numContours -1) {
+            for (i in 0 until numContours - 1) {
                 Imgproc.drawContours(renderMat, landCoutoursLocal, i, Scalar(255.toDouble(), 35.toDouble(), 240.toDouble()), 5)
             }
         }
@@ -279,9 +305,31 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         isRendering = false
     }
 
-    protected fun drawLaneContours(canvas : Canvas)
-    {
-        if(laneContours == null) {
+
+    fun drawDetections(canvas: Canvas) {
+        if (signRects == null) {
+            return
+        }
+        if (frameToScreenTransform == null) {
+            if (textureView == null) {
+                textureView = findViewById(R.id.texture) as AutoFitTextureView
+            }
+            frameToScreenTransform = ImageUtils.getTransformationMatrix(
+                    previewWidth, previewHeight,
+                    textureView!!.width, textureView!!.height,
+                    displayOrientation!!, MAINTAIN_ASPECT)
+        }
+        Log.i("Sign drawing", "" + signRects!!.size)
+        signRects!!.map { rect ->
+            frameToScreenTransform!!.mapRect(rect)
+        }
+        signRects!!.map { rect ->
+            canvas.drawRect(rect, signPaint)
+        }
+    }
+
+    protected fun drawLaneContours(canvas: Canvas) {
+        if (laneContours == null) {
             return
         }
 
@@ -301,7 +349,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         var outputPoints = FloatArray(16)
         var opencvPoints = Array(4, { i -> org.opencv.core.Point() })
         //var androidPoints = Array(4, { i -> android.graphics.Point() })
-        for(box : RotatedRect in contourBoxes!!) {
+        for (box: RotatedRect in contourBoxes!!) {
             box.points(opencvPoints)
 
             outputPoints[0] = opencvPoints[0].x.toFloat()
@@ -327,14 +375,13 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         }
     }
 
-    protected fun contoursToRectangles(srcContours : ArrayList<MatOfPoint>?) : ArrayList<RotatedRect>?
-    {
+    protected fun contoursToRectangles(srcContours: ArrayList<MatOfPoint>?): ArrayList<RotatedRect>? {
         // TODO: REMEMBER TO MAP RECTANGLES TO THEIR PROPER LOCALTION
         // FrameToScreenTransform
 
         var contourBoxes = ArrayList<RotatedRect>()
 
-        for(contour : MatOfPoint in srcContours!!) {
+        for (contour: MatOfPoint in srcContours!!) {
             var convertedContour = MatOfPoint2f()
             contour.convertTo(convertedContour, CvType.CV_32F)
             var rotatedRect = Imgproc.minAreaRect(convertedContour)
@@ -346,6 +393,10 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
     public fun setContours(contours: ArrayList<MatOfPoint>) {
         laneContours = contours
+    }
+
+    public fun setSignRects(signRects: ArrayList<RectF>) {
+        this.signRects = signRects
     }
 }
 
