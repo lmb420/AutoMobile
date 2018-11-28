@@ -81,6 +81,9 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
         Imgproc.adaptiveThreshold(processedFrame, processedFrame, 255.toDouble(),
                 Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 55, ADAPTIVE_THRESHOLD)
         Imgproc.findContours(processedFrame, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+
+        val numContours = contours.size
+        Log.d(TAG, "Found $numContours contours")
     }
 
 

@@ -11,5 +11,9 @@
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true" />
 
+    <cse281.automobile.OverlayView
+        android:id="@+id/lane_tracking_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
 </RelativeLayout>

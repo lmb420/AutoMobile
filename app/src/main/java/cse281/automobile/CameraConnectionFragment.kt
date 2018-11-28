@@ -389,19 +389,21 @@ class CameraConnectionFragment : Fragment() {
             val surface = Surface(texture)
 
             // We set up a CaptureRequest.Builder with the output Surface.
+            previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+            previewRequestBuilder!!.addTarget(surface)
+
+            Log.i(TAG, "Opening camera preview: " + previewSize!!.width + "x" + previewSize!!.height)
 
             // Create the reader for the preview frames.
             previewReader = ImageReader.newInstance(
                     previewSize!!.width, previewSize!!.height, ImageFormat.YUV_420_888, 2)
-
-            previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
 
             previewReader!!.setOnImageAvailableListener(imageListener, backgroundHandler)
             previewRequestBuilder!!.addTarget(previewReader!!.surface)
 
             // Here, we create a CameraCaptureSession for camera preview.
             cameraDevice!!.createCaptureSession(
-                    Arrays.asList(previewReader!!.surface),
+                    Arrays.asList(surface, previewReader!!.surface),
                     object : CameraCaptureSession.StateCallback() {
 
                         override fun onConfigured(cameraCaptureSession: CameraCaptureSession) {
@@ -439,36 +441,6 @@ class CameraConnectionFragment : Fragment() {
         }
 
     }
-
-    /*
-    public fun displayFrame(frame: Bitmap)
-    {
-        val canvas = textureView!!.lockCanvas()
-
-        val rotation = activity.windowManager.defaultDisplay.rotation
-        val matrix = Matrix()
-        val viewRect = RectF(0f, 0f, textureView!!.width.toFloat(), textureView!!.height.toFloat())
-        val bufferRect = RectF(0f, 0f, previewSize!!.height.toFloat(), previewSize!!.width.toFloat())
-        val centerX = viewRect.centerX()
-        val centerY = viewRect.centerY()
-
-        val scale = Math.min(
-               textureView!!.height.toFloat() / previewSize!!.width,
-                textureView!!.width.toFloat() / previewSize!!.height)
-
-        matrix.postRotate(90 * (rotation + 1).toFloat(), 0f, 0f)
-
-        matrix.postTranslate(previewSize!!.height.toFloat(), 0f)
-
-        matrix.postScale(scale, scale)
-
-        Log.i(TAG, "Rotation is $rotation")
-
-        canvas.drawBitmap(frame, matrix, null)
-
-        textureView!!.unlockCanvasAndPost(canvas)
-    }
-    */
 
     /**
      * Configures the necessary [android.graphics.Matrix] transformation to `mTextureView`.
@@ -550,9 +522,9 @@ class CameraConnectionFragment : Fragment() {
 
 
         fun newInstance(callback: ConnectionCallback,
-                imageListener: OnImageAvailableListener,
-                layout: Int,
-                inputSize: Size): CameraConnectionFragment {
+                        imageListener: OnImageAvailableListener,
+                        layout: Int,
+                        inputSize: Size): CameraConnectionFragment {
             val frag = CameraConnectionFragment()
             val args = Bundle().apply {
                 putInt(ARG_LAYOUT, layout)
