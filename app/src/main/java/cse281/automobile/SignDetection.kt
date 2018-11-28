@@ -45,6 +45,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
         private var parentActivity: AdasActivity? = null
         private var mappedRecognitions: ArrayList<RectF>? = null
         private var lastGood: ArrayList<RectF>? = null
+        private var labels: ArrayList<String>? = null
 
 
         fun initModel(assets: AssetManager, previewWidth: Int, previewHeight: Int, sensorOrientation: Int, parentActivity: AdasActivity) {
@@ -81,6 +82,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
         var minimumConfidence = minimumConf
 
         mappedRecognitions = ArrayList<RectF>()
+        labels = ArrayList<String>()
 
         for (result in results) {
             val location = result.getLocation()
@@ -88,16 +90,18 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
                 cropToFrameTransform!!.mapRect(location)
                 result.setLocation(location)
                 mappedRecognitions!!.add(result.getLocation())
+                labels!!.add(result.getClass())
+
                 Log.v("$TAG.result", result.toString())
             }
         }
         if(mappedRecognitions!!.size > 0){
-            processText(frame[0], mappedRecognitions!![0])
+            processText(frame[0], mappedRecognitions!![0], labels!![0])
         }
         return mappedRecognitions!!
     }
 
-    private fun processText(frame: Bitmap, location: RectF) {
+    private fun processText(frame: Bitmap, location: RectF, objectClass: String) {
         val width = (location.width() * 1.2).toInt()
         val height = (location.height() * 1.2).toInt()
 
@@ -110,7 +114,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
                 .addOnSuccessListener {
                     val result = it.text
                     Log.v("OCRRESULT", "result = " + result)
-                    Toast.makeText(parentActivity!!.applicationContext, result, Toast.LENGTH_LONG).show();
+                    Toast.makeText(parentActivity!!.applicationContext, objectClass + " - " + result, Toast.LENGTH_LONG).show();
 
                     // Task completed successfully
                     // ...

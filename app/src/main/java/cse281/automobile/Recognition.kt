@@ -17,6 +17,9 @@ class Recognition(val id: Int?, val title: String, val confidence: Float?, priva
         this.location = location
     }
 
+    fun getClass() : String{
+        return title
+    }
     override fun toString(): String {
         return "Recognition{" +
                 "id=" + id +
