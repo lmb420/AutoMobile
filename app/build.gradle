@@ -57,7 +57,7 @@ dependencies {
     implementation project(':openCVLibrary343')
     implementation 'com.google.firebase:firebase-core:16.0.5'
     implementation 'com.google.firebase:firebase-ml-vision:18.0.1'
-    implementation 'org.tensorflow:tensorflow-android:+'
+    api 'org.tensorflow:tensorflow-android:+'
 }
 
 apply plugin: 'com.google.gms.google-services'

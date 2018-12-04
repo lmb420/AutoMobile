@@ -16,4 +16,9 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
+    <cse281.automobile.OverlayView
+        android:id="@+id/sign_detection_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+
 </RelativeLayout>
