@@ -1,40 +1,26 @@
 package cse281.automobile
 
-import android.Manifest
-import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.*
-import android.support.v7.app.AppCompatActivity
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.RectF
 import android.os.*
 
-import android.hardware.camera2.CameraAccessException
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
-
-import android.media.Image
 import android.media.ImageReader
 
 import android.util.Log
 import android.util.Size
-import android.view.Surface
-import android.widget.Toast
+import android.widget.ImageView
+import android.widget.TextView
 
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.imgproc.Imgproc
-import org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C
-import org.opencv.imgproc.Imgproc.THRESH_BINARY
 
 import cse281.automobile.OverlayView.DrawCallback
 
 import cse281.env.ImageUtils
 import org.opencv.core.*
-import org.opencv.core.Point
-import org.opencv.core.Rect
 
 
 class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
@@ -77,10 +63,14 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
     private var trackingOverlay: OverlayView? = null
     private var signOverlay: OverlayView? = null
+    private var infoPanel: OverlayView? = null
+    private var signView: ImageView? = null
 
     private var signDetectionTask: SignDetection? = null
-    private var signRects: ArrayList<RectF>? = null
+    private var signRecogs: ArrayList<Recognition>? = null
     private val signPaint = Paint()
+    private var speedLimit:Int = -1
+    private var speedLimitBmp: Bitmap? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -129,7 +119,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             frameToScreenTransform = null
         }
 
-        trackingOverlay = findViewById<OverlayView>(R.id.lane_tracking_overlay)
+        trackingOverlay = findViewById(R.id.lane_tracking_overlay)
 
         trackingOverlay!!.addCallback(
                 object : DrawCallback {
@@ -138,7 +128,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     }
                 })
 
-        signOverlay = findViewById<OverlayView>(R.id.sign_detection_overlay)
+        signOverlay = findViewById(R.id.sign_detection_overlay)
 
         signOverlay!!.addCallback(
                 object : DrawCallback {
@@ -146,6 +136,10 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                         drawDetections(canvas)
                     }
                 })
+
+        //infoPanel = findViewById(R.id.info_panel)
+
+        signView = findViewById(R.id.signView)
 
         boxPaint.style = Paint.Style.STROKE
         boxPaint.strokeWidth = 12.0f
@@ -156,7 +150,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
 
         signPaint.style = Paint.Style.STROKE
-        signPaint.strokeWidth = 20.0f
+        signPaint.strokeWidth = 18.0f
         signPaint.strokeCap = Paint.Cap.ROUND
         signPaint.strokeJoin = Paint.Join.ROUND
         signPaint.strokeMiter = 100f
@@ -307,7 +301,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
 
     fun drawDetections(canvas: Canvas) {
-        if (signRects == null) {
+        if (signRecogs == null) {
             return
         }
         if (frameToScreenTransform == null) {
@@ -319,12 +313,12 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     textureView!!.width, textureView!!.height,
                     displayOrientation!!, MAINTAIN_ASPECT)
         }
-        Log.i("Sign drawing", "" + signRects!!.size)
-        signRects!!.map { rect ->
-            frameToScreenTransform!!.mapRect(rect)
+        Log.i("Sign drawing", "" + signRecogs!!.size)
+        signRecogs!!.map { recog ->
+            frameToScreenTransform!!.mapRect(recog.bBox)
         }
-        signRects!!.map { rect ->
-            canvas.drawRect(rect, signPaint)
+        signRecogs!!.map { recog ->
+            canvas.drawRect(recog.bBox, signPaint)
         }
     }
 
@@ -391,12 +385,33 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         return contourBoxes
     }
 
-    public fun setContours(contours: ArrayList<MatOfPoint>) {
+    fun setContours(contours: ArrayList<MatOfPoint>) {
         laneContours = contours
     }
 
-    public fun setSignRects(signRects: ArrayList<RectF>) {
-        this.signRects = signRects
+    fun setSignRecogs(signRecogs: ArrayList<Recognition>) {
+        this.signRecogs = signRecogs
+    }
+
+    fun setSpeedLimit(speedLimit:Int, speedLimitBmp:Bitmap){
+        if(speedLimit != -1){
+            this.speedLimit = speedLimit
+            findViewById<TextView>(R.id.speedLimit).setText(""+speedLimit)
+        }
+        this.speedLimitBmp = speedLimitBmp
+        val matrix = Matrix()
+        // RESIZE THE BIT MAP
+        val xFactor = 300/speedLimitBmp.width
+        val yFactor = 500 / speedLimitBmp.height
+        matrix.postScale(xFactor.toFloat(), yFactor.toFloat())
+
+        // "RECREATE" THE NEW BITMAP
+        val resizedBitmap = Bitmap.createBitmap(speedLimitBmp, 0, 0, speedLimitBmp.width, speedLimitBmp.height, matrix, false)
+        signView!!.setImageBitmap(resizedBitmap)
+    }
+
+    fun updateInfo(){
+
     }
 }
 

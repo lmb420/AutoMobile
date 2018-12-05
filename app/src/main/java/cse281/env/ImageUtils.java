@@ -54,7 +54,7 @@ public class ImageUtils {
      * Saves a Bitmap object to disk for analysis.
      *
      * @param bitmap The bitmap to save.
-     * @param filename The location to save the bitmap to.
+     * @param filename The bBox to save the bitmap to.
      */
     public static void saveBitmap(final Bitmap bitmap, final String filename) {
         final String root =

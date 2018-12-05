@@ -1,38 +1,30 @@
 package cse281.automobile
 
-import android.app.Activity
 import android.content.res.AssetManager
 import android.os.AsyncTask
 import android.util.Log
 import com.google.firebase.ml.vision.common.FirebaseVisionImage
 import com.google.firebase.ml.vision.FirebaseVision
-import com.google.firebase.ml.vision.text.FirebaseVisionTextRecognizer
-import android.support.annotation.NonNull
-import com.google.android.gms.tasks.OnFailureListener
-import com.google.firebase.ml.vision.text.FirebaseVisionText
-import com.google.android.gms.tasks.OnSuccessListener
 import cse281.env.ImageUtils
 
-import org.tensorflow.contrib.android.TensorFlowInferenceInterface
-import android.R.array
-import android.R.attr.bitmap
 import android.graphics.*
-import android.opengl.ETC1.getHeight
 import android.os.SystemClock
+import android.util.SparseIntArray
+import android.view.Surface
 import android.widget.Toast
-import java.nio.ByteBuffer
-import java.util.*
+import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import kotlin.collections.ArrayList
 
 
-class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
-    private val TAG = "cse281.automobile.SignDetection"
+class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
+
     var postExecutionCallback : Runnable? = null
 
     companion object {
+        private val TAG = "cse281.automobile.SignDetection"
         private val cropSize = 300
         private val modelFilename = "file:///android_asset/frozen_inference_graph.pb"
-        private val labelFilename = "file:///android_asset/labels.pbtxt"
+        private val labelFilename = "file:///android_asset/mappedLabels.pbtxt"
         private val minimumConf = .5
 
         private var detector: TFDetector? = null
@@ -43,12 +35,44 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
         private var imageSize:Int? = null
         private var croppedBitmap: Bitmap? = null
         private var parentActivity: AdasActivity? = null
-        private var mappedRecognitions: ArrayList<RectF>? = null
-        private var lastGood: ArrayList<RectF>? = null
-        private var labels: ArrayList<String>? = null
 
+        var bestSpeedLimit:Recognition? = null
+        var bestSpeedText: Int = -1
+
+        private val paint = Paint()
+        private var detectCount = 5
+
+        private val ORIENTATIONS = SparseIntArray()
+        private var deviceRotation: Int? = null
+        private var sensorOrientation: Int? = null
+
+        init {
+            ORIENTATIONS.append(Surface.ROTATION_0, 90)
+            ORIENTATIONS.append(Surface.ROTATION_90, 0)
+            ORIENTATIONS.append(Surface.ROTATION_180, 270)
+            ORIENTATIONS.append(Surface.ROTATION_270, 180)
+        }
+
+        fun Bitmap.rotate(degrees: Int): Bitmap {
+            val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+            return Bitmap.createBitmap(this, 0, 0, width, height, matrix, true)
+        }
+
+        private fun getRotationCompensation(): Int {
+            // Get the device's current rotation relative to its "native" orientation.
+            // Then, from the ORIENTATIONS table, look up the angle the image must be
+            // rotated to compensate for the device's rotation.
+            var rotationCompensation = ORIENTATIONS.get(deviceRotation!!)
+
+            // On most devices, the sensor orientation is 90 degrees, but for some
+            // devices it is 270 degrees. For devices with a sensor orientation of
+            // 270, rotate the image an additional 180 ((270 + 270) % 360) degrees.
+            return (rotationCompensation + sensorOrientation!! + 270) % 360
+        }
 
         fun initModel(assets: AssetManager, previewWidth: Int, previewHeight: Int, sensorOrientation: Int, parentActivity: AdasActivity) {
+            this.sensorOrientation = sensorOrientation
+            this.deviceRotation =  parentActivity.windowManager.defaultDisplay.rotation
             this.previewHeight = previewHeight
             this.previewWidth = previewWidth
             detector = TFDetector.create(assets, modelFilename, labelFilename, cropSize)
@@ -60,70 +84,79 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
             cropToFrameTransform = Matrix()
             frameToCropTransform!!.invert(cropToFrameTransform)
             this.parentActivity = parentActivity
+
+            paint.color = Color.RED
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 2.0f
+
         }
+
+        private fun processText(frame: Bitmap) {
+            val location = bestSpeedLimit?.bBox!!
+            var width = (location.width() * 2.5).toInt()
+            var height = (location.height() * 1.5).toInt()
+            val xOffset = ((width - location.width()) / 1.5).toInt()
+            val yOffset = ((height - location.height()) / 2).toInt()
+
+            if((location.top).toInt() + height > frame.height){
+                height = frame.height - (location.top).toInt()
+            }
+            if((location.right).toInt() + width > frame.width){
+                width = frame.width - (location.right).toInt()
+            }
+
+            //val croppedFrame = Bitmap.createBitmap(frame, (bBox.left*(5/6)).toInt(),(bBox.right*(5/6)).toInt(),width,height)
+            val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt()-xOffset,(location.top).toInt() -yOffset,width,height)
+            val image = FirebaseVisionImage.fromBitmap(croppedFrame)
+            val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
+
+            textRecognizer.processImage(image)
+                    .addOnSuccessListener {
+                        val result = it.text
+                        Log.v(TAG +".ocrres", "result = " + result)
+                        if(result.toIntOrNull() != null){
+                            bestSpeedText = result.toIntOrNull()!!
+                            parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
+                        }else{
+                            parentActivity!!.setSpeedLimit(-1, croppedFrame)
+                        }
+                        Toast.makeText(parentActivity!!.applicationContext, "speed limit - " + bestSpeedText, Toast.LENGTH_LONG).show();
+                    }
+                    .addOnFailureListener {
+                        Log.v(TAG, "Detection failed with " + it.message)
+                    }
+        }
+
     }
 
-    override fun doInBackground(vararg frame : Bitmap) : ArrayList<RectF> {
+    override fun doInBackground(vararg frame : Bitmap) : ArrayList<Recognition> {
         val canvas = Canvas(croppedBitmap)
+
         canvas.drawBitmap(frame[0], frameToCropTransform, null)
 
         val startTime = SystemClock.uptimeMillis()
-        val results = detector!!.recognizeImage(croppedBitmap!!)
+        var results = detector!!.recognizeImage(croppedBitmap!!)
         val endTime = SystemClock.uptimeMillis()
         val elapsed = endTime - startTime
         //Log.v(TAG, "Inference took $elapsed ms")
 
-        //val overlay = Canvas()
-        val paint = Paint()
-        paint.color = Color.RED
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 2.0f
+        bestSpeedLimit = null
 
-        var minimumConfidence = minimumConf
-
-        mappedRecognitions = ArrayList<RectF>()
-        labels = ArrayList<String>()
-
-        for (result in results) {
-            val location = result.getLocation()
-            if (result.confidence!! >= minimumConfidence) {
-                cropToFrameTransform!!.mapRect(location)
-                result.setLocation(location)
-                mappedRecognitions!!.add(result.getLocation())
-                labels!!.add(result.getClass())
-
-                Log.v("$TAG.result", result.toString())
+        results = results.filter{it.confidence!! >= minimumConf}.sortedWith(compareByDescending{it.confidence})
+        results = results.map{result ->
+            cropToFrameTransform!!.mapRect(result.bBox)
+//            Log.v("$TAG.debug", ""+result.confidence)
+            if(result.title == ("speedLimit")){
+                bestSpeedLimit = result
             }
+            Log.v("$TAG.result", result.toString())
+            result
         }
-        if(mappedRecognitions!!.size > 0){
-            processText(frame[0], mappedRecognitions!![0], labels!![0])
+
+        if(bestSpeedLimit != null){
+            processText(frame[0])
         }
-        return mappedRecognitions!!
-    }
-
-    private fun processText(frame: Bitmap, location: RectF, objectClass: String) {
-        val width = (location.width() * 1.2).toInt()
-        val height = (location.height() * 1.2).toInt()
-
-        //val croppedFrame = Bitmap.createBitmap(frame, (location.left*(5/6)).toInt(),(location.right*(5/6)).toInt(),width,height)
-        val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt(),(location.top).toInt(),width,height)
-        val image = FirebaseVisionImage.fromBitmap(croppedFrame)
-        val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
-
-        textRecognizer.processImage(image)
-                .addOnSuccessListener {
-                    val result = it.text
-                    Log.v("OCRRESULT", "result = " + result)
-                    Toast.makeText(parentActivity!!.applicationContext, objectClass + " - " + result, Toast.LENGTH_LONG).show();
-
-                    // Task completed successfully
-                    // ...
-                }
-                .addOnFailureListener {
-                    Log.v(TAG, "Detection failed with " + it.message)
-                    // Task failed with an exception
-                    // ...
-                }
+        return ArrayList(results)
     }
 
     fun setCallback(callback : Runnable) {
@@ -131,14 +164,16 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<RectF>>(){
     }
 
     @Override
-    override fun onPostExecute(result : ArrayList<RectF>) {
+    override fun onPostExecute(result : ArrayList<Recognition>) {
         super.onPostExecute(result)
         //invalidate
-        if(result.size > 0) {
+        if(result.size > 0 || detectCount == 0) {
             Log.v(TAG, "" + result.size)
-            lastGood = result
-            parentActivity!!.setSignRects(result)
+            parentActivity!!.setSignRecogs(result)
             parentActivity!!.invalidateSigns()
+            detectCount = 5
+        }else{
+            detectCount--
         }
         postExecutionCallback!!.run()
         parentActivity!!.readyForNextImage()
