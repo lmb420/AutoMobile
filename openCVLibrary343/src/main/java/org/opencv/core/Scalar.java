@@ -87,4 +87,11 @@ public class Scalar {
         return "[" + val[0] + ", " + val[1] + ", " + val[2] + ", " + val[3] + "]";
     }
 
+    public double getValue(int idx) {
+        return val[idx];
+    }
+
+    public void setValue(int idx, double newVal) {
+        val[idx] = newVal;
+    }
 }

@@ -26,6 +26,7 @@ import android.widget.Toast
 import org.opencv.android.OpenCVLoader
 import org.opencv.android.Utils
 import org.opencv.imgproc.Imgproc
+import org.opencv.core.*
 import org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_MEAN_C
 import org.opencv.imgproc.Imgproc.THRESH_BINARY
 
@@ -333,6 +334,8 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             return
         }
 
+        val debug = true
+
         if (frameToScreenTransform == null) {
             if (textureView == null) {
                 textureView = findViewById(R.id.texture) as AutoFitTextureView
@@ -344,36 +347,46 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     displayOrientation!!, MAINTAIN_ASPECT)
         }
 
-        var contourBoxes = contoursToRectangles(laneContours)
+        if(debug) {
+            drawDebugContours(canvas, laneContours, frameToScreenTransform)
+        }
+        else {
+            var contourBoxes = contoursToRectangles(laneContours)
+            var numContours = contourBoxes!!.size
 
-        var outputPoints = FloatArray(16)
-        var opencvPoints = Array(4, { i -> org.opencv.core.Point() })
-        //var androidPoints = Array(4, { i -> android.graphics.Point() })
-        for (box: RotatedRect in contourBoxes!!) {
-            box.points(opencvPoints)
+            Log.i(TAG, "Drawing $numContours good contours")
 
-            outputPoints[0] = opencvPoints[0].x.toFloat()
-            outputPoints[1] = opencvPoints[0].y.toFloat()
-            outputPoints[2] = opencvPoints[1].x.toFloat()
-            outputPoints[3] = opencvPoints[1].y.toFloat()
-            outputPoints[4] = outputPoints[2]
-            outputPoints[5] = outputPoints[3]
-            outputPoints[6] = opencvPoints[2].x.toFloat()
-            outputPoints[7] = opencvPoints[2].y.toFloat()
-            outputPoints[8] = outputPoints[6]
-            outputPoints[9] = outputPoints[7]
-            outputPoints[10] = opencvPoints[3].x.toFloat()
-            outputPoints[11] = opencvPoints[3].y.toFloat()
-            outputPoints[12] = outputPoints[10]
-            outputPoints[13] = outputPoints[11]
-            outputPoints[14] = outputPoints[0]
-            outputPoints[15] = outputPoints[1]
+            var outputPoints = FloatArray(16)
+            var opencvPoints = Array(4, { i -> org.opencv.core.Point() })
+            //var androidPoints = Array(4, { i -> android.graphics.Point() })
+            for (box: RotatedRect in contourBoxes!!) {
+                box.points(opencvPoints)
 
-            frameToScreenTransform!!.mapPoints(outputPoints)
+                outputPoints[0] = opencvPoints[0].x.toFloat()
+                outputPoints[1] = opencvPoints[0].y.toFloat()
+                outputPoints[2] = opencvPoints[1].x.toFloat()
+                outputPoints[3] = opencvPoints[1].y.toFloat()
+                outputPoints[4] = outputPoints[2]
+                outputPoints[5] = outputPoints[3]
+                outputPoints[6] = opencvPoints[2].x.toFloat()
+                outputPoints[7] = opencvPoints[2].y.toFloat()
+                outputPoints[8] = outputPoints[6]
+                outputPoints[9] = outputPoints[7]
+                outputPoints[10] = opencvPoints[3].x.toFloat()
+                outputPoints[11] = opencvPoints[3].y.toFloat()
+                outputPoints[12] = outputPoints[10]
+                outputPoints[13] = outputPoints[11]
+                outputPoints[14] = outputPoints[0]
+                outputPoints[15] = outputPoints[1]
 
-            canvas.drawLines(outputPoints, boxPaint)
+                frameToScreenTransform!!.mapPoints(outputPoints)
+
+                canvas.drawLines(outputPoints, boxPaint)
+            }
         }
     }
+
+    val THRESHOLD_SIZE = .015
 
     protected fun contoursToRectangles(srcContours: ArrayList<MatOfPoint>?): ArrayList<RotatedRect>? {
         // TODO: REMEMBER TO MAP RECTANGLES TO THEIR PROPER LOCALTION
@@ -381,14 +394,48 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
         var contourBoxes = ArrayList<RotatedRect>()
 
+        var areaThreshold = previewHeight * previewWidth * THRESHOLD_SIZE
+
         for (contour: MatOfPoint in srcContours!!) {
             var convertedContour = MatOfPoint2f()
             contour.convertTo(convertedContour, CvType.CV_32F)
             var rotatedRect = Imgproc.minAreaRect(convertedContour)
-            contourBoxes.add(rotatedRect)
+
+            var rectSize = rotatedRect.size
+            var area = rectSize.height * rectSize.width
+
+            if(area > areaThreshold) {
+                contourBoxes.add(rotatedRect)
+            }
         }
 
         return contourBoxes
+    }
+
+    protected fun drawDebugContours(canvas: Canvas, srcContours: ArrayList<MatOfPoint>?, transform: Matrix?) {
+
+        var areaThreshold = previewHeight * previewWidth * THRESHOLD_SIZE
+
+        var outputPoints = FloatArray(2)
+
+        for (contour: MatOfPoint in srcContours!!) {
+            var convertedContour = MatOfPoint2f()
+            contour.convertTo(convertedContour, CvType.CV_32F)
+            var rotatedRect = Imgproc.minAreaRect(convertedContour)
+
+            var rectSize = rotatedRect.size
+            var area = rectSize.height * rectSize.width
+
+            if(area > areaThreshold) {
+                var points = contour.toArray()
+                for(point in points) {
+                    outputPoints[0] = point.x.toFloat()
+                    outputPoints[1] = point.y.toFloat()
+                    transform!!.mapPoints(outputPoints)
+                    canvas.drawCircle(outputPoints[0], outputPoints[1], 1.toFloat(), boxPaint)
+                }
+            }
+        }
     }
 
     public fun setContours(contours: ArrayList<MatOfPoint>) {
