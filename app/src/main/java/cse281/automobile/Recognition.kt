@@ -7,25 +7,14 @@ import android.graphics.RectF
  * Created by Zoltan Szabo on 12/17/17.
  * URL: https://github.com/szaza/android-yolo-v2
  */
-class Recognition(val id: Int?, val title: String, val confidence: Float?, private var location: RectF?) {
+class Recognition(val id: Int?, val title: String, val confidence: Float?, var bBox: RectF?) {
 
-    fun getLocation(): RectF {
-        return RectF(location)
-    }
-
-    fun setLocation(location: RectF) {
-        this.location = location
-    }
-
-    fun getClass() : String{
-        return title
-    }
     override fun toString(): String {
         return "Recognition{" +
                 "id=" + id +
                 ", title='" + title + '\''.toString() +
                 ", confidence=" + confidence +
-                ", location=" + location +
+                ", bBox=" + bBox +
                 '}'.toString()
     }
 }
