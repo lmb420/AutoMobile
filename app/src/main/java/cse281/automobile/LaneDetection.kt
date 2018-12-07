@@ -20,10 +20,10 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
     private val TRI_RIGHT_SIDE = 0.45
 
     private var LOWER_WHITE = Scalar(0.toDouble(), 0.toDouble(), 170.toDouble())
-    private var UPPER_WHITE = Scalar(180.toDouble(), 90.toDouble(), 260.toDouble())
+    private var UPPER_WHITE = Scalar(180.toDouble(), 80.toDouble(), 260.toDouble())
 
-    private var LOWER_YELLOW = Scalar(20.0, 100.toDouble(), 80.toDouble())
-    private var UPPER_YELLOW = Scalar(40.0, 255.toDouble(), 255.toDouble())
+    private var LOWER_YELLOW = Scalar(16.0, 60.toDouble(), 80.toDouble())
+    private var UPPER_YELLOW = Scalar(42.0, 255.toDouble(), 255.toDouble())
 
     private val CROP_WIDTH_LEFT = 0
     private val CROP_WIDTH_RIGHT = 1
@@ -32,7 +32,9 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
 
     private var cropOffset: Point? = null
 
-    private var meanBrightness: Double = 0.0;
+    private var trapazoidMask: Mat? = null
+
+    private var meanBrightness: Double = 0.0
 
     private val kernel = Imgproc.getStructuringElement(Imgproc.CV_SHAPE_RECT, Size(3.toDouble(), 3.toDouble()))
 
@@ -81,6 +83,28 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
         var croppedFrame = frame.submat(Range((height * CROP_HEIGHT_TOP).toInt(), (height * CROP_HEIGHT_BOT).toInt()),
                 Range((width * CROP_WIDTH_LEFT).toInt(), (width * CROP_WIDTH_RIGHT).toInt()))
 
+        val croppedHeight = croppedFrame.rows()
+        val croppedWidth = croppedFrame.cols()
+        var points : MatOfPoint
+        var topPoint : Point
+        var sidePoint : Point
+
+        trapazoidMask = Mat(croppedHeight, croppedWidth, CvType.CV_8U, Scalar(255.0))
+
+        topPoint = Point(croppedWidth * TRI_LEFT_TOP, 0.0)
+        sidePoint = Point(0.0, croppedHeight * TRI_LEFT_SIDE)
+
+        points = MatOfPoint(topPoint, sidePoint, Point(0.0,0.0))
+
+        Imgproc.fillConvexPoly(trapazoidMask, points, Scalar(0.0))
+
+        topPoint = Point(croppedWidth - (croppedWidth * TRI_RIGHT_TOP), 0.0)
+        sidePoint = Point(croppedWidth.toDouble(), croppedHeight * TRI_RIGHT_SIDE)
+
+        points = MatOfPoint(topPoint, sidePoint, Point(croppedWidth.toDouble(), 0.0))
+
+        Imgproc.fillConvexPoly(trapazoidMask, points, Scalar(0.0))
+
         preprocessFrame(croppedFrame)
 
         mahalColorFilter(croppedFrame)
@@ -105,38 +129,23 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
         val height = frame.rows()
         val width = frame.cols()
 
-        var points : MatOfPoint
-        var topPoint : Point
-        var sidePoint : Point
-        var sumMask = Mat(height, width, CvType.CV_8U, Scalar(255.0))
+        val meanScalar : MatOfDouble = MatOfDouble()
+        val stdDevScalar : MatOfDouble = MatOfDouble()
 
-        topPoint = Point(width * TRI_LEFT_TOP, 0.0)
-        sidePoint = Point(0.0, height * TRI_LEFT_SIDE)
+        Core.meanStdDev(frame, meanScalar, stdDevScalar, trapazoidMask)
 
-        points = MatOfPoint(topPoint, sidePoint, Point(0.0,0.0))
-
-        Imgproc.fillConvexPoly(sumMask, points, Scalar(0.0))
-
-        topPoint = Point(width - (width * TRI_RIGHT_TOP), 0.0)
-        sidePoint = Point(width.toDouble(), height * TRI_RIGHT_SIDE)
-
-        points = MatOfPoint(topPoint, sidePoint, Point(width.toDouble(), 0.0))
-
-        Imgproc.fillConvexPoly(sumMask, points, Scalar(0.0))
-
-        val meanScalar : Scalar = Core.mean(grayFrame, sumMask)
-
-        meanBrightness = (meanScalar.getValue(0))
+        meanBrightness = meanScalar.toArray()[2]
+        val stdDevBrightness = stdDevScalar.toArray()[2]
         val brightnessChange = meanBrightness - BRIGHTNESS
 
-        Log.e(TAG, "Mean Brightness is $meanBrightness")
+        Log.v(TAG, "Mean Brightness is $meanBrightness, Std Dev is $stdDevBrightness")
 
         //LOWER_WHITE.setValue(2, LOWER_WHITE.getValue(2) + brightnessChange)
 
-        LOWER_WHITE.setValue(2, Math.min(meanBrightness * 1.2 + 35.0, 230.0))
+        LOWER_WHITE.setValue(2, Math.min(meanBrightness * 1.1 + 1 * stdDevBrightness, 230.0))
 
-        LOWER_YELLOW.setValue(2, LOWER_YELLOW.getValue(2) + brightnessChange)
-        UPPER_YELLOW.setValue(2, UPPER_YELLOW.getValue(2) + brightnessChange)
+        LOWER_YELLOW.setValue(2, Math.min(meanBrightness * .8, 230.0))
+        //UPPER_YELLOW.setValue(2, UPPER_YELLOW.getValue(2) + brightnessChange)
 
         val whiteTemp = Mat(height, width, CvType.CV_8U, Scalar(0.0))
         val yellowTemp = Mat(height, width, CvType.CV_8U, Scalar(0.0))
@@ -153,17 +162,7 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
 
         yellowTemp.setTo(Scalar(0.0), mask)
 
-        /*
-        val y_x = yellowTemp.width()
-        val y_y = yellowTemp.height()
-        val w_x = whiteTemp.width()
-        val w_y = whiteTemp.height()
-        Log.e(TAG, "Yellow: ($y_x x $y_y)     White: ($w_x x $w_y)")
-        */
-
         Core.bitwise_or(whiteTemp, yellowTemp, binarizedFrame)
-
-        //Imgproc.cvtColor(binarizedFrame, binarizedFrame, Imgproc.COLOR_GRAY2RGBA)
     }
 
     private fun imageOps() {
@@ -172,9 +171,6 @@ class LaneDetection : AsyncTask<Mat, Void, ArrayList<MatOfPoint>>() {
         var points : MatOfPoint
         var topPoint : Point
         var sidePoint : Point
-
-        //Imgproc.adaptiveThreshold(grayFrame, binarizedFrame, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY_INV, 31, 30.0);
-
 
         Imgproc.blur(binarizedFrame, processedFrame, kernel.size())
 
