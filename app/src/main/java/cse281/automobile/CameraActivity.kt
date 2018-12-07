@@ -29,6 +29,7 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
 
     private val PERMISSION_CAMERA = Manifest.permission.CAMERA
     private val PERMISSION_STORAGE = Manifest.permission.WRITE_EXTERNAL_STORAGE
+    private val PERMISSION_FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION
 
     private var handler: Handler? = null
     private var handlerThread: HandlerThread? = null
@@ -215,7 +216,8 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
         if (requestCode == PERMISSIONS_REQUEST) {
             if (grantResults.isNotEmpty()
                     && grantResults[0] == PackageManager.PERMISSION_GRANTED
-                    && grantResults[1] == PackageManager.PERMISSION_GRANTED) {
+                    && grantResults[1] == PackageManager.PERMISSION_GRANTED
+                    && grantResults[2] == PackageManager.PERMISSION_GRANTED) {
                 setFragment()
             } else {
                 requestPermission()
@@ -225,15 +227,16 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
 
     private fun hasPermission() : Boolean {
         return checkSelfPermission(PERMISSION_CAMERA) == PackageManager.PERMISSION_GRANTED &&
-                checkSelfPermission(PERMISSION_STORAGE) == PackageManager.PERMISSION_GRANTED;
+                checkSelfPermission(PERMISSION_STORAGE) == PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(PERMISSION_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     private fun requestPermission() {
         if (shouldShowRequestPermissionRationale(PERMISSION_CAMERA) || shouldShowRequestPermissionRationale(PERMISSION_STORAGE)) {
             Toast.makeText(this,
-                    "Camera AND storage permission are required for this app", Toast.LENGTH_LONG).show()
+                    "Camera, storage, and location permission are required for this app", Toast.LENGTH_LONG).show()
         }
-        requestPermissions(arrayOf(PERMISSION_CAMERA, PERMISSION_STORAGE), PERMISSIONS_REQUEST)
+        requestPermissions(arrayOf(PERMISSION_CAMERA, PERMISSION_STORAGE, PERMISSION_FINE_LOCATION), PERMISSIONS_REQUEST)
     }
 
     // Returns true if the device supports the required hardware level, or better.
@@ -264,7 +267,7 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
 // Fallback to camera1 API for internal cameras that don't have full support.
                 // This should help with legacy situations where using the camera2 API causes
                 // distorted or otherwise broken previews.
-                useCamera2API = true //= facing == CameraCharacteristics.LENS_FACING_EXTERNAL || isHardwareLevelSupported(characteristics,
+                useCamera2API = true //facing == CameraCharacteristics.LENS_FACING_EXTERNAL || isHardwareLevelSupported(characteristics,
                         //CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)
                 Log.i(TAG, "Camera API 1vs2?: $useCamera2API")
                 return cameraId

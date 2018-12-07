@@ -1,9 +1,11 @@
 package cse281.automobile
 
+import android.app.AlertDialog
 import android.graphics.*
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.RectF
+import android.location.Location
 import android.os.*
 
 import android.media.ImageReader
@@ -24,6 +26,10 @@ import cse281.automobile.OverlayView.DrawCallback
 
 import cse281.env.ImageUtils
 import org.opencv.core.*
+import android.app.ProgressDialog
+import android.content.*
+import android.location.LocationManager
+import android.os.IBinder
 
 
 class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
@@ -78,8 +84,116 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private var speedLimitBmp: Bitmap? = null
     private var density: Float? = null
 
+    public var myService: LocationService? = null
+    var locationManager: LocationManager? = null
+    var image: ImageView? = null
+
+    private val sc = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName, service: IBinder) {
+            val binder = service as LocationService.LocalBinder
+            myService = binder.service
+            status = true
+        }
+
+        override fun onServiceDisconnected(name: ComponentName) {
+            status = false
+        }
+    }
+
+    fun bindService() {
+        if (status === true)
+            return
+        val i = Intent(applicationContext, LocationService::class.java)
+        bindService(i, sc, Context.BIND_AUTO_CREATE)
+        status = true
+        startTime = System.currentTimeMillis()
+    }
+
+    fun unbindService() {
+        if (status === false)
+            return
+        val i = Intent(applicationContext, LocationService::class.java)
+        unbindService(sc)
+        status = false
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if(status == true) {
+            unbindService()
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        //time = findViewById(R.id.timetext)
+        speed = findViewById(R.id.currentSpeed)
+        time = findViewById(R.id.timestamp)
+
+        checkGps()
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        if (!(locationManager!!.isProviderEnabled(LocationManager.GPS_PROVIDER))) {
+            return
+        }
+
+        if (status == false) {
+            Log.e(TAG, "Binding Service")
+            //Here, the Location Service gets bound and the GPS Speedometer gets Active.
+            bindService()
+        }
+        locate = ProgressDialog(this)
+        locate!!.setIndeterminate(true)
+        locate!!.setCancelable(false)
+        locate!!.setMessage("Getting Location...")
+        locate!!.show()
+
+        //start.setVisibility(View.GONE)
+        //pause.setVisibility(View.VISIBLE)
+        //pause.setText("Pause")
+        //stop.setVisibility(View.VISIBLE)
+    }
+
+    fun checkGps() {
+        locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
+
+        if (!locationManager!!.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            showGPSDisabledAlertToUser()
+        }
+    }
+
+    private fun showGPSDisabledAlertToUser() {
+        val alertDialogBuilder: AlertDialog.Builder = AlertDialog.Builder(this)
+        alertDialogBuilder.setMessage("Enable GPS to use application")
+                .setCancelable(false)
+                .setPositiveButton("Enable GPS",
+                        object : DialogInterface.OnClickListener {
+                            override fun onClick(dialog : DialogInterface, id : Int) {
+                                val callGPSSettingIntent = Intent(
+                                        android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                                startActivity(callGPSSettingIntent)
+                            }
+                        })
+        alertDialogBuilder.setNegativeButton("Cancel",
+                object : DialogInterface.OnClickListener {
+                    override fun onClick(dialog : DialogInterface, id : Int) {
+                        dialog.cancel()
+                    }
+                })
+        val alert = alertDialogBuilder.create();
+        alert.show()
+    }
+
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
+        @JvmField var locate: ProgressDialog? = null
+        @JvmField var dist: TextView? = null
+        @JvmField var time: TextView? = null
+        @JvmField var speed: TextView? = null
+        @JvmField var status: Boolean = false
+        @JvmField var startTime: Long = 0
+        @JvmField var endTime: Long = 0
 
         init {
             if (!OpenCVLoader.initDebug()) {
@@ -178,6 +292,13 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         Log.i(TAG, "Preparing image $currTimestamp for detection in bg thread.")
 
         rgbFrameBitmap!!.setPixels(getRgbBytes(), 0, previewWidth, 0, 0, previewWidth, previewHeight)
+
+        if(speed == null) {
+            speed = findViewById(R.id.currentSpeed)
+        }
+        if(time == null) {
+            time = findViewById(R.id.timestamp)
+        }
 
         if (processingLaneDetection == false) {
             processingLaneDetection = true
@@ -416,7 +537,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
         }
     }
 
-    val THRESHOLD_SIZE = .015
+    val THRESHOLD_SIZE = .008
 
     protected fun contoursToRectangles(srcContours: ArrayList<MatOfPoint>?): ArrayList<RotatedRect>? {
         // TODO: REMEMBER TO MAP RECTANGLES TO THEIR PROPER LOCALTION
