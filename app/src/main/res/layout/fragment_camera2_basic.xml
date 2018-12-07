@@ -8,7 +8,7 @@
 
     <cse281.automobile.AutoFitTextureView
         android:id="@+id/texture"
-        android:layout_width="521dp"
+        android:layout_width="531dp"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true" />
@@ -62,7 +62,6 @@
                 android:id="@+id/automobile_logo"
                 android:layout_width="45dp"
                 android:layout_height="45dp"
-                android:layout_marginStart="12dp"
                 android:layout_marginTop="5dp"
                 android:adjustViewBounds="true"
                 android:scaleType="fitXY"
