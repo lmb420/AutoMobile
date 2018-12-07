@@ -116,14 +116,28 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
             textRecognizer.processImage(image)
                     .addOnSuccessListener {
                         val result = it.text
-                        Log.v(TAG +".ocrres", "result = " + result)
-                        if(result.toIntOrNull() != null){
-                            bestSpeedText = result.toIntOrNull()!!
-                            parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
-                        }else{
-                            parentActivity!!.setSpeedLimit(-1, croppedFrame)
+                        it.textBlocks.map {
+                            block -> block.lines.map {
+                                it.elements.map {
+                                    val text=it.text
+                                    if(text.toIntOrNull() != null){
+                                        bestSpeedText = text.toIntOrNull()!!
+                                        parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
+                                    }else{
+                                        parentActivity!!.setSpeedLimit(-1, croppedFrame)
+                                    }
+                                }
+                            }
                         }
-                        Toast.makeText(parentActivity!!.applicationContext, ""+result, Toast.LENGTH_LONG).show();
+//                        if(result.toIntOrNull() != null){
+//                            bestSpeedText = result.toIntOrNull()!!
+//                            parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
+//                        }else{
+//                            parentActivity!!.setSpeedLimit(-1, croppedFrame)
+//                        }
+                        if(result != ""){
+                            Toast.makeText(parentActivity!!.applicationContext, "Sign text: "+result, Toast.LENGTH_LONG).show();
+                        }
                     }
                     .addOnFailureListener {
                         Log.v(TAG, "Detection failed with " + it.message)

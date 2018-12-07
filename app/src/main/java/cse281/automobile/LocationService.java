@@ -134,7 +134,7 @@ public class LocationService extends Service implements
         long diff = AdasActivity.endTime - AdasActivity.startTime;
         diff = TimeUnit.MILLISECONDS.toSeconds(diff);
         if(AdasActivity.speed != null) {
-            AdasActivity.speed.setText("Current speed: " + new DecimalFormat("#.##").format(speed) + " mph");
+            AdasActivity.speed.setText("" + new DecimalFormat("#.##").format(speed) + " mph");
         }
         if(AdasActivity.time != null) {
             AdasActivity.time.setText("Total Time: " + diff + " seconds");
