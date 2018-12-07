@@ -123,7 +123,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
                         }else{
                             parentActivity!!.setSpeedLimit(-1, croppedFrame)
                         }
-                        Toast.makeText(parentActivity!!.applicationContext, "speed limit - " + bestSpeedText, Toast.LENGTH_LONG).show();
+                        Toast.makeText(parentActivity!!.applicationContext, ""+result, Toast.LENGTH_LONG).show();
                     }
                     .addOnFailureListener {
                         Log.v(TAG, "Detection failed with " + it.message)
