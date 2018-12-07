@@ -25,11 +25,11 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
 
     companion object {
         private const val TAG = "cse281.automobile.SignDetection"
-        private const val BUF_LEN = 6
         private const val cropSize = 300
         private const val modelFilename = "file:///android_asset/frozen_inference_graph.pb"
         private const val labelFilename = "file:///android_asset/mappedLabels.pbtxt"
         private const val minimumConf = .6
+        private const val xShift = 640-480
 
         private var detector: TFDetector? = null
         private var frameToCropTransform: Matrix? = null
@@ -39,12 +39,13 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         private var imageSize:Int? = null
         private var croppedBitmap: Bitmap? = null
         private var parentActivity: AdasActivity? = null
+        private var ocrRunning = false
+
 
         var bestSpeedLimit:Recognition? = null
         var bestSpeedText: Int = -1
 
         private val paint = Paint()
-        private var detectCount = BUF_LEN
 
         private val ORIENTATIONS = SparseIntArray()
         private var deviceRotation: Int? = null
@@ -81,7 +82,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
             this.previewWidth = previewWidth
             detector = TFDetector.create(assets, modelFilename, labelFilename, cropSize)
             frameToCropTransform = ImageUtils.getTransformationMatrix(
-                    previewWidth, previewHeight,
+                    previewHeight, previewHeight,
                     cropSize, cropSize,
                     sensorOrientation, false)
             croppedBitmap = Bitmap.createBitmap(cropSize, cropSize, Bitmap.Config.ARGB_8888)
@@ -96,61 +97,60 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         }
 
         private fun processText(frame: Bitmap) {
-            val location = bestSpeedLimit?.bBox!!
-            var width = (location.width() * 2.5).toInt()
-            var height = (location.height() * 1.5).toInt()
-            val xOffset = ((width - location.width()) / 1.5).toInt()
-            val yOffset = ((height - location.height()) / 2).toInt()
+            if (!ocrRunning) {
+                ocrRunning = true
+                val location = bestSpeedLimit?.bBox!!
+                var width = (location.width() * 2.5).toInt()
+                var height = (location.height() * 1.5).toInt()
+                val xOffset = ((width - location.width()) / 1.5).toInt()
+                val yOffset = ((height - location.height()) / 2).toInt()
 
-            if((location.top).toInt() + height > frame.height){
-                height = frame.height - (location.top).toInt()
-            }
-            if((location.right).toInt() + width > frame.width){
-                width = frame.width - (location.right).toInt()
-            }
+                if ((location.top).toInt() + height > frame.height) {
+                    height = frame.height - (location.top).toInt()
+                }
+                if ((location.right).toInt() + width > frame.width) {
+                    width = frame.width - (location.right).toInt()
+                }
 
-            val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt()-xOffset,(location.top).toInt() -yOffset,width,height)
-            val image = FirebaseVisionImage.fromBitmap(croppedFrame)
-            val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
+                val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt() - xOffset, (location.top).toInt() - yOffset, width, height)
+                val image = FirebaseVisionImage.fromBitmap(croppedFrame)
+                val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
+                bestSpeedText = -1
 
-            textRecognizer.processImage(image)
-                    .addOnSuccessListener {
-                        val result = it.text
-                        it.textBlocks.map {
-                            block -> block.lines.map {
-                                it.elements.map {
-                                    val text=it.text
-                                    if(text.toIntOrNull() != null){
-                                        bestSpeedText = text.toIntOrNull()!!
-                                        parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
-                                    }else{
-                                        parentActivity!!.setSpeedLimit(-1, croppedFrame)
+                textRecognizer.processImage(image)
+                        .addOnSuccessListener {
+                            val result = it.text
+                            if (result != "") {
+                                Toast.makeText(parentActivity!!.applicationContext, "Sign text: " + result, Toast.LENGTH_LONG).show();
+                            }
+                            it.textBlocks.map { block ->
+                                block.lines.map {
+                                    it.elements.map {
+                                        val text = it.text
+                                        if (bestSpeedText == -1 && text.toIntOrNull() != null) {
+                                            bestSpeedText = text.toIntOrNull()!!
+                                            parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
+                                        }
                                     }
                                 }
                             }
                         }
-//                        if(result.toIntOrNull() != null){
-//                            bestSpeedText = result.toIntOrNull()!!
-//                            parentActivity!!.setSpeedLimit(bestSpeedText, croppedFrame)
-//                        }else{
-//                            parentActivity!!.setSpeedLimit(-1, croppedFrame)
-//                        }
-                        if(result != ""){
-                            Toast.makeText(parentActivity!!.applicationContext, "Sign text: "+result, Toast.LENGTH_LONG).show();
+                        .addOnFailureListener {
+                            Log.v(TAG, "Detection failed with " + it.message)
                         }
-                    }
-                    .addOnFailureListener {
-                        Log.v(TAG, "Detection failed with " + it.message)
-                    }
+                ocrRunning = false
+            }
         }
 
     }
 
     override fun doInBackground(vararg frame : Bitmap) : ArrayList<Recognition> {
-        val canvas = Canvas(croppedBitmap)
         val frameBmp = frame[0].copy(frame[0].config, true)
+        val cropFrame = Bitmap.createBitmap(frameBmp, frameBmp.width - frameBmp.height, 0,frameBmp.height, frameBmp.height)
 
-        canvas.drawBitmap(frameBmp, frameToCropTransform, null)
+        val canvas = Canvas(croppedBitmap)
+
+        canvas.drawBitmap(cropFrame, frameToCropTransform, null)
 
         val startTime = SystemClock.uptimeMillis()
         var results = detector!!.recognizeImage(croppedBitmap!!)
@@ -172,10 +172,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         }
 
         if(bestSpeedLimit != null){
-            processText(frameBmp)
-            //val croppedFrame = Bitmap.createBitmap(frameBmp, bestSpeedLimit!!.bBox!!.left.toInt(), bestSpeedLimit!!.bBox!!.top.toInt() ,bestSpeedLimit!!.bBox!!.width().toInt(),bestSpeedLimit!!.bBox!!.height().toInt())
-            //parentActivity!!.setSpeedLimit(-1, croppedFrame)
-
+            processText(cropFrame)
         }
         return ArrayList(results)
     }
@@ -184,20 +181,19 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         postExecutionCallback = callback
     }
 
-
-
     @Override
-    override fun onPostExecute(result : ArrayList<Recognition>) {
-        super.onPostExecute(result)
+    override fun onPostExecute(result : ArrayList<Recognition>){
+        val mappedRes = ArrayList(result.map{
+            rec-> rec.bBox!!.left += xShift
+            rec.bBox!!.right += xShift
+            rec
+        })
+
+        super.onPostExecute(mappedRes)
         //invalidate
-        if(result.size > 0 || detectCount == 0) {
-            Log.v(TAG, "" + result.size)
-            parentActivity!!.setSignRecogs(result)
-            parentActivity!!.invalidateSigns()
-            detectCount = BUF_LEN
-        }else{
-            detectCount--
-        }
+        parentActivity!!.setSignRecogs(mappedRes)
+        parentActivity!!.invalidateSigns()
+
         postExecutionCallback!!.run()
         parentActivity!!.readyForNextImage()
     }

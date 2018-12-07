@@ -447,7 +447,6 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     textureView!!.width, textureView!!.height,
                     displayOrientation!!, MAINTAIN_ASPECT)
         }
-        Log.i("Sign drawing", "" + signRecogs!!.size)
 
         stopSignWarn = false
         signRecogs!!.map { recog ->
@@ -460,7 +459,9 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
             }
         }
 
-        findViewById<TextView>(R.id.speedLimit).text = "$speedLimit mph"
+        if(speedLimit != -1){
+            findViewById<TextView>(R.id.speedLimit).text = "$speedLimit mph"
+        }
 
         val matrix = Matrix()
         // RESIZE THE BIT MAP
@@ -598,6 +599,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     }
 
     fun setSpeedLimit(speedLimit:Int, speedLimitBmp:Bitmap){
+
         if(speedLimit != -1){
             this.speedLimit = speedLimit
         }
