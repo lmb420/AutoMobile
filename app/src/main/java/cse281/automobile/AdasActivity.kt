@@ -72,8 +72,11 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     private var signDetectionTask: SignDetection? = null
     private var signRecogs: ArrayList<Recognition>? = null
     private val signPaint = Paint()
+    private val stopSignPaint = Paint()
+    private var stopSignWarn = false
     private var speedLimit:Int = -1
     private var speedLimitBmp: Bitmap? = null
+    private var density: Float? = null
 
     companion object {
         private val TAG = "cse281.automobile.AdasActivity"
@@ -139,7 +142,7 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                         drawDetections(canvas)
                     }
                 })
-
+        density = resources.displayMetrics.density
         //infoPanel = findViewById(R.id.info_panel)
 
         signView = findViewById(R.id.signView)
@@ -153,15 +156,22 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
 
 
         signPaint.style = Paint.Style.STROKE
-        signPaint.strokeWidth = 18.0f
+        signPaint.strokeWidth = 15.0f
         signPaint.strokeCap = Paint.Cap.ROUND
         signPaint.strokeJoin = Paint.Join.ROUND
         signPaint.strokeMiter = 100f
         signPaint.color = 0xff0000ff.toInt()
+
+        stopSignPaint.style = Paint.Style.STROKE
+        stopSignPaint.strokeWidth = 15.0f
+        stopSignPaint.strokeCap = Paint.Cap.ROUND
+        stopSignPaint.strokeJoin = Paint.Join.ROUND
+        stopSignPaint.strokeMiter = 100f
+        stopSignPaint.color = Color.YELLOW
         SignDetection.initModel(assets, previewHeight, previewWidth, orientation, this)
     }
 
-    protected override fun processImage() {
+    override fun processImage() {
         ++timestamp
         val currTimestamp = timestamp
 
@@ -317,11 +327,35 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
                     displayOrientation!!, MAINTAIN_ASPECT)
         }
         Log.i("Sign drawing", "" + signRecogs!!.size)
+
+        stopSignWarn = false
         signRecogs!!.map { recog ->
             frameToScreenTransform!!.mapRect(recog.bBox)
+            if(recog.title == "stopSign"){
+                canvas.drawRect(recog.bBox, stopSignPaint)
+                stopSignWarn = true
+            }else{
+                canvas.drawRect(recog.bBox, signPaint)
+            }
         }
-        signRecogs!!.map { recog ->
-            canvas.drawRect(recog.bBox, signPaint)
+
+        findViewById<TextView>(R.id.speedLimit).text = "$speedLimit mph"
+
+        val matrix = Matrix()
+        // RESIZE THE BIT MAP
+        if(speedLimitBmp != null){
+            val xFactor = 60*density!! /speedLimitBmp!!.width
+            val yFactor = 80*density!! / speedLimitBmp!!.height
+            matrix.postScale(xFactor, yFactor)
+            val resizedBitmap = Bitmap.createBitmap(speedLimitBmp!!, 0, 0, speedLimitBmp!!.width, speedLimitBmp!!.height, matrix, false)
+            signView!!.setImageBitmap(resizedBitmap)
+        }
+
+
+        if(stopSignWarn){
+            findViewById<ImageView>(R.id.stopSign).setBackgroundColor(resources.getColor(android.R.color.holo_orange_dark))
+        }else{
+            findViewById<ImageView>(R.id.stopSign).setBackgroundColor(resources.getColor(android.R.color.holo_green_dark))
         }
     }
 
@@ -445,23 +479,10 @@ class AdasActivity : CameraActivity(), ImageReader.OnImageAvailableListener {
     fun setSpeedLimit(speedLimit:Int, speedLimitBmp:Bitmap){
         if(speedLimit != -1){
             this.speedLimit = speedLimit
-            findViewById<TextView>(R.id.speedLimit).setText(""+speedLimit)
         }
         this.speedLimitBmp = speedLimitBmp
-        val matrix = Matrix()
-        // RESIZE THE BIT MAP
-        val xFactor = 300/speedLimitBmp.width
-        val yFactor = 500 / speedLimitBmp.height
-        matrix.postScale(xFactor.toFloat(), yFactor.toFloat())
-
-        // "RECREATE" THE NEW BITMAP
-        val resizedBitmap = Bitmap.createBitmap(speedLimitBmp, 0, 0, speedLimitBmp.width, speedLimitBmp.height, matrix, false)
-        signView!!.setImageBitmap(resizedBitmap)
     }
 
-    fun updateInfo(){
-
-    }
 }
 
 

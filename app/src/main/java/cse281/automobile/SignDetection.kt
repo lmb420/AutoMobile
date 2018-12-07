@@ -14,6 +14,9 @@ import android.view.Surface
 import android.widget.Toast
 import com.google.firebase.ml.vision.common.FirebaseVisionImageMetadata
 import kotlin.collections.ArrayList
+import android.graphics.Bitmap
+
+
 
 
 class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
@@ -21,11 +24,12 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
     var postExecutionCallback : Runnable? = null
 
     companion object {
-        private val TAG = "cse281.automobile.SignDetection"
-        private val cropSize = 300
-        private val modelFilename = "file:///android_asset/frozen_inference_graph.pb"
-        private val labelFilename = "file:///android_asset/mappedLabels.pbtxt"
-        private val minimumConf = .5
+        private const val TAG = "cse281.automobile.SignDetection"
+        private const val BUF_LEN = 6
+        private const val cropSize = 300
+        private const val modelFilename = "file:///android_asset/frozen_inference_graph.pb"
+        private const val labelFilename = "file:///android_asset/mappedLabels.pbtxt"
+        private const val minimumConf = .6
 
         private var detector: TFDetector? = null
         private var frameToCropTransform: Matrix? = null
@@ -40,7 +44,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         var bestSpeedText: Int = -1
 
         private val paint = Paint()
-        private var detectCount = 5
+        private var detectCount = BUF_LEN
 
         private val ORIENTATIONS = SparseIntArray()
         private var deviceRotation: Int? = null
@@ -105,7 +109,6 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
                 width = frame.width - (location.right).toInt()
             }
 
-            //val croppedFrame = Bitmap.createBitmap(frame, (bBox.left*(5/6)).toInt(),(bBox.right*(5/6)).toInt(),width,height)
             val croppedFrame = Bitmap.createBitmap(frame, (location.left).toInt()-xOffset,(location.top).toInt() -yOffset,width,height)
             val image = FirebaseVisionImage.fromBitmap(croppedFrame)
             val textRecognizer = FirebaseVision.getInstance().onDeviceTextRecognizer
@@ -131,8 +134,9 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
 
     override fun doInBackground(vararg frame : Bitmap) : ArrayList<Recognition> {
         val canvas = Canvas(croppedBitmap)
+        val frameBmp = frame[0].copy(frame[0].config, true)
 
-        canvas.drawBitmap(frame[0], frameToCropTransform, null)
+        canvas.drawBitmap(frameBmp, frameToCropTransform, null)
 
         val startTime = SystemClock.uptimeMillis()
         var results = detector!!.recognizeImage(croppedBitmap!!)
@@ -146,7 +150,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         results = results.map{result ->
             cropToFrameTransform!!.mapRect(result.bBox)
 //            Log.v("$TAG.debug", ""+result.confidence)
-            if(result.title == ("speedLimit")){
+            if(bestSpeedLimit == null && result.title == ("speedLimit")){
                 bestSpeedLimit = result
             }
             Log.v("$TAG.result", result.toString())
@@ -154,7 +158,10 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
         }
 
         if(bestSpeedLimit != null){
-            processText(frame[0])
+            processText(frameBmp)
+            //val croppedFrame = Bitmap.createBitmap(frameBmp, bestSpeedLimit!!.bBox!!.left.toInt(), bestSpeedLimit!!.bBox!!.top.toInt() ,bestSpeedLimit!!.bBox!!.width().toInt(),bestSpeedLimit!!.bBox!!.height().toInt())
+            //parentActivity!!.setSpeedLimit(-1, croppedFrame)
+
         }
         return ArrayList(results)
     }
@@ -162,6 +169,8 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
     fun setCallback(callback : Runnable) {
         postExecutionCallback = callback
     }
+
+
 
     @Override
     override fun onPostExecute(result : ArrayList<Recognition>) {
@@ -171,7 +180,7 @@ class SignDetection : AsyncTask<Bitmap, Void, ArrayList<Recognition>>(){
             Log.v(TAG, "" + result.size)
             parentActivity!!.setSignRecogs(result)
             parentActivity!!.invalidateSigns()
-            detectCount = 5
+            detectCount = BUF_LEN
         }else{
             detectCount--
         }

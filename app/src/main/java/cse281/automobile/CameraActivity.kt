@@ -264,8 +264,8 @@ abstract class CameraActivity : Activity(), OnImageAvailableListener, CameraConn
 // Fallback to camera1 API for internal cameras that don't have full support.
                 // This should help with legacy situations where using the camera2 API causes
                 // distorted or otherwise broken previews.
-                useCamera2API = facing == CameraCharacteristics.LENS_FACING_EXTERNAL || isHardwareLevelSupported(characteristics,
-                        CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)
+                useCamera2API = true //= facing == CameraCharacteristics.LENS_FACING_EXTERNAL || isHardwareLevelSupported(characteristics,
+                        //CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL)
                 Log.i(TAG, "Camera API 1vs2?: $useCamera2API")
                 return cameraId
             }

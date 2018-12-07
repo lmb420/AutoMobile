@@ -8,7 +8,7 @@
 
     <cse281.automobile.AutoFitTextureView
         android:id="@+id/texture"
-        android:layout_width="405dp"
+        android:layout_width="510dp"
         android:layout_height="wrap_content"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true" />
@@ -40,7 +40,7 @@
         <!--tools:layout_editor_absoluteY="0dp" />-->
 
         <TextView
-            android:id="@+id/editText"
+            android:id="@+id/speedLimit_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="8dp"
@@ -54,29 +54,96 @@
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
+            android:id="@+id/currentSpeed_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="44dp"
+            android:text="Current Speed"
+            android:textSize="30dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/speedLimit_text" />
+
+        <TextView
             android:id="@+id/speedLimit"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="16dp"
             android:layout_marginStart="16dp"
-            android:layout_marginTop="16dp"
-            android:text="TextView"
+            android:text="No signs detected"
             android:textSize="24dp"
             app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.478"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/editText" />
+            app:layout_constraintTop_toBottomOf="@+id/speedLimit_text" />
+
+        <TextView
+            android:id="@+id/currentSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginStart="16dp"
+            android:text="No gps signal"
+            android:textSize="24dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.52"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/currentSpeed_text" />
+
+        <TextView
+            android:id="@+id/signView_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="16dp"
+            android:text="Speed limit"
+            android:textSize="24dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/currentSpeed" />
+
+        <TextView
+            android:id="@+id/stopSign_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="16dp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="16dp"
+            android:text="Stop Sign"
+            android:textSize="24dp"
+            app:layout_constraintEnd_toStartOf="@+id/signView_text"
+            app:layout_constraintHorizontal_bias="0.708"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/currentSpeed" />
 
         <ImageView
             android:id="@+id/signView"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_width="60dp"
+            android:layout_height="80dp"
             android:layout_marginBottom="32dp"
             android:layout_marginEnd="16dp"
             android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.5"
-            app:layout_constraintStart_toStartOf="parent"/>
+            app:layout_constraintHorizontal_bias="0.623"
+            app:layout_constraintStart_toEndOf="@+id/stopSign"
+            app:layout_constraintTop_toBottomOf="@+id/signView_text"
+            app:layout_constraintVertical_bias="0.666"
+            app:srcCompat="@android:color/black" />
+
+        <ImageView
+            android:id="@+id/stopSign"
+            android:layout_width="60dp"
+            android:layout_height="80dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginStart="32dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/stopSign_text"
+            app:layout_constraintVertical_bias="0.4"
+            app:srcCompat="@android:color/holo_green_dark" />
 
 
     </android.support.constraint.ConstraintLayout>
